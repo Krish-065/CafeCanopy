@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Edit2, Trash2, Tag } from 'lucide-react';
+import { Edit2, Trash2, Tag, Award, Trophy } from 'lucide-react';
 import { employeesAPI } from '../../lib/api';
 import toast from 'react-hot-toast';
 
@@ -56,6 +56,7 @@ export default function EmployeesPage() {
   };
 
   const ROLE_COLORS: Record<string, string> = { admin: 'badge-error', employee: 'badge-info', kitchen: 'badge-warning' };
+  const LEVEL_COLORS: Record<string, string> = { Platinum: 'badge-error', Gold: 'badge-warning', Silver: 'badge-info', Bronze: 'badge-gray' };
 
   return (
     <>
@@ -68,9 +69,9 @@ export default function EmployeesPage() {
         <div className="card">
           <div className="table-wrapper">
             <table>
-              <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Score</th><th>Level</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
               <tbody>
-                {loading ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40 }}><div className="spinner" /></td></tr> :
+                {loading ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40 }}><div className="spinner" /></td></tr> :
                 employees.map(e => (
                   <tr key={e.id}>
                     <td>
@@ -83,18 +84,36 @@ export default function EmployeesPage() {
                     </td>
                     <td style={{ color: 'var(--text-muted)' }}>{e.email}</td>
                     <td><span className={`badge ${ROLE_COLORS[e.role] || 'badge-gray'}`} style={{ textTransform: 'capitalize' }}>{e.role}</span></td>
+                    <td style={{ fontWeight: 700, color: 'var(--brown-600)' }}>
+                      {e.role === 'employee' ? `₹${Number(e.score || 0).toLocaleString()}` : '—'}
+                    </td>
+                    <td>
+                      {e.role === 'employee' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {e.performance_level === 'Platinum' && <Trophy size={14} style={{ color: '#E5E4E2' }} />}
+                          {e.performance_level === 'Gold' && <Trophy size={14} style={{ color: '#FFD700' }} />}
+                          {e.performance_level === 'Silver' && <Award size={14} style={{ color: '#C0C0C0' }} />}
+                          {e.performance_level === 'Bronze' && <Award size={14} style={{ color: '#CD7F32' }} />}
+                          <span className={`badge ${LEVEL_COLORS[e.performance_level] || 'badge-gray'}`}>
+                            {e.performance_level || 'Bronze'}
+                          </span>
+                        </div>
+                      ) : '—'}
+                    </td>
                     <td><span className={`badge ${e.active ? 'badge-success' : 'badge-gray'}`}>{e.active ? 'Active' : 'Disabled'}</span></td>
                     <td style={{ color: 'var(--text-muted)', fontSize: 13 }}>{e.last_login ? new Date(e.last_login).toLocaleDateString() : 'Never'}</td>
                     <td>
                       <div className="table-actions">
                         <button className="btn btn-outline btn-sm" onClick={() => { setEdit({ ...e }); setShowModal(true); }}>Edit</button>
                         <button className="btn btn-secondary btn-sm" onClick={() => { setResetId(e.id); setShowPasswordModal(true); }}>🔑 Reset</button>
-                        <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(e.id)}></button>
+                        <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(e.id)} data-tooltip="Delete">
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>
                 ))}
-                {!loading && employees.length === 0 && <tr><td colSpan={6}><div className="empty-state"><div className="empty-icon">👤</div><h3>No employees found</h3></div></td></tr>}
+                {!loading && employees.length === 0 && <tr><td colSpan={8}><div className="empty-state"><div className="empty-icon">👤</div><h3>No employees found</h3></div></td></tr>}
               </tbody>
             </table>
           </div>

@@ -63,7 +63,9 @@ export default function CategoriesPage() {
                 </div>
                 <div className="card-footer" style={{ display: 'flex', gap: 6 }}>
                   <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => openEdit(c)}>Edit</button>
-                  <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(c.id)}></button>
+                  <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(c.id)} data-tooltip="Delete">
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               </div>
             ))}

@@ -62,7 +62,9 @@ export default function PaymentMethodsPage() {
               </div>
               <div className="card-footer" style={{ display: 'flex', gap: 6 }}>
                 <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => { setEdit({ ...m }); setShowModal(true); }}>Edit</button>
-                <button className="btn btn-danger btn-sm btn-icon" onClick={async () => { if (confirm('Delete?')) { await paymentMethodsAPI.delete(m.id); toast.success('Deleted'); load(); } }}></button>
+                <button className="btn btn-danger btn-sm btn-icon" onClick={async () => { if (confirm('Delete?')) { await paymentMethodsAPI.delete(m.id); toast.success('Deleted'); load(); } }} data-tooltip="Delete">
+                  <Trash2 size={16} />
+                </button>
               </div>
             </div>
           ))}

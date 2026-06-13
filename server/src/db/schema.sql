@@ -1,5 +1,4 @@
 -- CafeCanopy Restaurant POS - Complete Database Schema
--- Run this on Neon PostgreSQL
 
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

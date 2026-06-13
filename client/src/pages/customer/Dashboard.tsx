@@ -27,6 +27,11 @@ export default function CustomerDashboard() {
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [coupons, setCoupons] = useState<any[]>([]);
 
+  // Recommendations state
+  const [recommendation, setRecommendation] = useState<any>(null);
+  const [showRecommendationModal, setShowRecommendationModal] = useState(false);
+  const [hasShownRecommendation, setHasShownRecommendation] = useState(false);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -93,20 +98,10 @@ export default function CustomerDashboard() {
     }, 0);
   };
 
-  const handlePlaceOrder = async () => {
-    const itemsCount = getCartItemsCount();
-    if (itemsCount === 0) {
-      toast.error('Your cart is empty');
-      return;
-    }
-    if (!selectedTableId) {
-      toast.error('Please select a table');
-      return;
-    }
-
+  const submitOrder = async (finalCart: typeof cart) => {
     setSubmittingOrder(true);
     try {
-      const orderItems = Object.entries(cart).map(([pId, qty]) => ({
+      const orderItems = Object.entries(finalCart).map(([pId, qty]) => ({
         product_id: pId,
         quantity: qty,
       }));
@@ -120,6 +115,7 @@ export default function CustomerDashboard() {
       toast.success('Order placed! Waiting for cashier confirmation');
       clearCart();
       setNotes('');
+      setHasShownRecommendation(false); // Reset for next checkout
       // Reload dashboard/orders history
       const dashRes = await customerPortalAPI.getDashboard();
       setDashboardData(dashRes.data.data);
@@ -128,7 +124,38 @@ export default function CustomerDashboard() {
       toast.error(error.response?.data?.message || 'Failed to place order');
     } finally {
       setSubmittingOrder(false);
+      setShowRecommendationModal(false);
     }
+  };
+
+  const handlePlaceOrder = async () => {
+    const itemsCount = getCartItemsCount();
+    if (itemsCount === 0) {
+      toast.error('Your cart is empty');
+      return;
+    }
+    if (!selectedTableId) {
+      toast.error('Please select a table');
+      return;
+    }
+
+    if (!hasShownRecommendation) {
+      try {
+        const cartIds = Object.keys(cart).join(',');
+        const res = await customerPortalAPI.getRecommendations(cartIds);
+        if (res.data?.success && res.data?.data?.length > 0) {
+          const bestRec = res.data.data[0];
+          setRecommendation(bestRec);
+          setHasShownRecommendation(true);
+          setShowRecommendationModal(true);
+          return; // Pause execution to show modal
+        }
+      } catch (err) {
+        console.error('Failed to get recommendations', err);
+      }
+    }
+
+    await submitOrder(cart);
   };
 
   const formatCurrency = (n: number) => `₹${Number(n || 0).toFixed(2)}`;
@@ -418,6 +445,110 @@ export default function CustomerDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Recommendation Modal */}
+      {showRecommendationModal && recommendation && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: 20
+        }}>
+          <div className="card" style={{
+            maxWidth: 480,
+            width: '100%',
+            padding: 28,
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+            border: '1px solid var(--cream-300)',
+            background: 'var(--bg-card)'
+          }}>
+            <h3 style={{
+              fontSize: 18,
+              fontWeight: 800,
+              color: 'var(--brown-800)',
+              marginBottom: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}>
+              ✨ Special Recommendation
+            </h3>
+            
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20 }}>
+              Based on your order and purchase history, we suggest adding this item:
+            </p>
+
+            <div style={{
+              display: 'flex',
+              gap: 16,
+              background: 'var(--cream-100)',
+              padding: 16,
+              borderRadius: 12,
+              marginBottom: 24,
+              border: '1px solid var(--cream-200)'
+            }}>
+              {recommendation.image_url && (
+                <img 
+                  src={recommendation.image_url} 
+                  alt={recommendation.name} 
+                  style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8 }}
+                />
+              )}
+              <div style={{ flex: 1 }}>
+                <h4 style={{ fontWeight: 700, fontSize: 15, color: 'var(--brown-700)' }}>{recommendation.name}</h4>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  {recommendation.description || 'A perfect addition to your order!'}
+                </p>
+                <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--brown-800)', marginTop: 8 }}>
+                  ₹{Number(recommendation.price).toFixed(2)}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button 
+                className="btn btn-primary btn-full btn-lg" 
+                onClick={async () => {
+                  const finalCart = { ...cart, [recommendation.id]: 1 };
+                  setCart(finalCart);
+                  await submitOrder(finalCart);
+                }}
+                disabled={submittingOrder}
+                style={{ fontWeight: 700 }}
+              >
+                {submittingOrder ? <span className="spinner spinner-sm" style={{ borderTopColor: 'white' }} /> : `Add & Place Order (₹${(getCartSubtotal() + Number(recommendation.price)).toFixed(2)})`}
+              </button>
+              
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button 
+                  className="btn btn-outline" 
+                  onClick={() => submitOrder(cart)}
+                  disabled={submittingOrder}
+                  style={{ flex: 1, padding: '10px 14px', fontSize: 13, fontWeight: 600 }}
+                >
+                  No, Place Original Order
+                </button>
+                <button 
+                  className="btn btn-ghost" 
+                  onClick={() => setShowRecommendationModal(false)}
+                  disabled={submittingOrder}
+                  style={{ color: 'var(--text-muted)', fontSize: 13, fontWeight: 600 }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

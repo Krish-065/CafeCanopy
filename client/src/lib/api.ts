@@ -165,4 +165,5 @@ export const customerPortalAPI = {
   createOrder: (data: any) => api.post('/customer/orders', data),
   getTables: () => api.get('/customer/tables'),
   getCoupons: () => api.get('/customer/coupons'),
+  getRecommendations: (cart: string) => api.get('/customer/recommendations', { params: { cart } }),
 };

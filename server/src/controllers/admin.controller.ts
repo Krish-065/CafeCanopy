@@ -284,8 +284,20 @@ export const getEmployees = async (req: Request, res: Response) => {
     const where = `WHERE ${conditions.join(' AND ')}`;
     const [dataResult, countResult] = await Promise.all([
       query(
-        `SELECT id, name, email, role, active, avatar_url, last_login, created_at FROM users u ${where}
-         ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
+        `SELECT u.id, u.name, u.email, u.role, u.active, u.avatar_url, u.last_login, u.created_at,
+           COALESCE(SUM(o.total), 0)::float as total_revenue,
+           COALESCE(SUM(o.total), 0)::float as score,
+           CASE 
+             WHEN COALESCE(SUM(o.total), 0) >= 200000 THEN 'Platinum'
+             WHEN COALESCE(SUM(o.total), 0) >= 50000 THEN 'Gold'
+             WHEN COALESCE(SUM(o.total), 0) >= 10000 THEN 'Silver'
+             ELSE 'Bronze'
+           END as performance_level
+         FROM users u
+         LEFT JOIN orders o ON o.employee_id = u.id AND o.status = 'paid'
+         ${where}
+         GROUP BY u.id, u.name, u.email, u.role, u.active, u.avatar_url, u.last_login, u.created_at
+         ORDER BY total_revenue DESC, u.created_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
         [...params, Number(limit), offset]
       ),
       query(`SELECT COUNT(*) FROM users u ${where}`, params)
@@ -428,7 +440,7 @@ export const getCustomerHistory = async (req: Request, res: Response) => {
        FROM orders o LEFT JOIN users u ON o.employee_id = u.id
        LEFT JOIN order_items oi ON oi.order_id = o.id
        LEFT JOIN products p ON oi.product_id = p.id
-       WHERE o.customer_id = $1 GROUP BY o.id ORDER BY o.created_at DESC LIMIT 20`,
+       WHERE o.customer_id = $1 GROUP BY o.id, u.name ORDER BY o.created_at DESC LIMIT 20`,
       [req.params.id]
     );
     return res.json({ success: true, data: result.rows });

@@ -6,6 +6,95 @@ import { createCustomerOrder } from '../controllers/pos.controller';
 const router = Router();
 router.use(authenticate);
 
+// Recommendations
+router.get('/recommendations', customerOrAdmin, async (req: any, res) => {
+  try {
+    const customer = await query(`SELECT id FROM customers WHERE user_id = $1`, [req.user.id]);
+    const customerId = customer.rows[0]?.id;
+    
+    const { cart } = req.query; // cart parameter: comma-separated list of product UUIDs
+    let cartProductIds: string[] = [];
+    if (cart && typeof cart === 'string') {
+      cartProductIds = cart.split(',').filter(id => id.length === 36);
+    }
+
+    let result;
+    if (cartProductIds.length > 0 && customerId) {
+      result = await query(
+        `WITH together_stats AS (
+          SELECT oi2.product_id, COUNT(DISTINCT oi2.order_id)::float as together_count
+          FROM order_items oi1
+          JOIN order_items oi2 ON oi1.order_id = oi2.order_id
+          WHERE oi1.product_id = ANY($1::uuid[]) AND oi2.product_id != ALL($1::uuid[])
+          GROUP BY oi2.product_id
+        ),
+        user_stats AS (
+          SELECT oi.product_id, COUNT(oi.id)::float as user_buy_count
+          FROM orders o
+          JOIN order_items oi ON oi.order_id = o.id
+          WHERE o.customer_id = $2 AND oi.product_id != ALL($1::uuid[])
+          GROUP BY oi.product_id
+        )
+        SELECT p.*, 
+               COALESCE(t.together_count, 0) as together_count,
+               COALESCE(u.user_buy_count, 0) as user_buy_count,
+               (COALESCE(t.together_count, 0) * 1.0 + COALESCE(u.user_buy_count, 0) * 1.5) as recommendation_score
+        FROM products p
+        LEFT JOIN together_stats t ON p.id = t.product_id
+        LEFT JOIN user_stats u ON p.id = u.product_id
+        WHERE p.active = true AND p.id != ALL($1::uuid[])
+          AND (t.together_count > 0 OR u.user_buy_count > 0)
+        ORDER BY recommendation_score DESC, p.name ASC
+        LIMIT 5`,
+        [cartProductIds, customerId]
+      );
+    } else if (customerId) {
+      result = await query(
+        `WITH user_stats AS (
+          SELECT oi.product_id, COUNT(oi.id)::float as user_buy_count
+          FROM orders o
+          JOIN order_items oi ON oi.order_id = o.id
+          WHERE o.customer_id = $1
+          GROUP BY oi.product_id
+        )
+        SELECT p.*, 
+               0 as together_count,
+               COALESCE(u.user_buy_count, 0) as user_buy_count,
+               COALESCE(u.user_buy_count, 0) * 1.5 as recommendation_score
+        FROM products p
+        JOIN user_stats u ON p.id = u.product_id
+        WHERE p.active = true
+        ORDER BY recommendation_score DESC, p.name ASC
+        LIMIT 5`,
+        [customerId]
+      );
+    }
+
+    if (!result || result.rows.length === 0) {
+      const excludeClause = cartProductIds.length > 0 ? 'WHERE p.active = true AND p.id != ALL($1::uuid[])' : 'WHERE p.active = true';
+      const params = cartProductIds.length > 0 ? [cartProductIds] : [];
+      result = await query(
+        `SELECT p.*, 
+               0 as together_count,
+               0 as user_buy_count,
+               COUNT(oi.id)::float as recommendation_score
+        FROM products p
+        LEFT JOIN order_items oi ON p.id = oi.product_id
+        ${excludeClause}
+        GROUP BY p.id
+        ORDER BY recommendation_score DESC, p.name ASC
+        LIMIT 5`,
+        params
+      );
+    }
+
+    return res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Recommendations fetch error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch recommendations' });
+  }
+});
+
 // Place order on a table
 router.post('/orders', customerOrAdmin, createCustomerOrder);
 

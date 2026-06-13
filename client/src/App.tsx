@@ -6,6 +6,7 @@ import { useAuthStore } from './store';
 // Auth
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import GetStartedPage from './pages/GetStartedPage';
 
 // Layouts
 import AdminLayout from './layouts/AdminLayout';
@@ -26,21 +27,28 @@ import SettingsPage from './pages/admin/Settings';
 // POS & Kitchen
 import POSTerminal from './pages/POSTerminal';
 import KitchenDisplay from './pages/KitchenDisplay';
+import CustomerDashboard from './pages/customer/Dashboard';
 
 // Guards
 const PrivateRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) => {
   const { isAuthenticated, user } = useAuthStore();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) return <Navigate to="/login" replace />;
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    if (user.role === 'customer') return <Navigate to="/customer/dashboard" replace />;
+    if (user.role === 'kitchen') return <Navigate to="/kds" replace />;
+    return <Navigate to="/admin/dashboard" replace />;
+  }
   return <>{children}</>;
 };
 
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, user } = useAuthStore();
   if (isAuthenticated) {
+    if (user?.role === 'admin') return <Navigate to="/admin/dashboard" replace />;
+    if (user?.role === 'employee') return <Navigate to="/pos" replace />;
     if (user?.role === 'kitchen') return <Navigate to="/kds" replace />;
     if (user?.role === 'customer') return <Navigate to="/customer/dashboard" replace />;
-    return <Navigate to="/admin/dashboard" replace />;
+    return <Navigate to="/" replace />;
   }
   return <>{children}</>;
 };
@@ -64,6 +72,9 @@ export default function App() {
         }}
       />
       <Routes>
+        {/* Landing Page */}
+        <Route path="/" element={<GetStartedPage />} />
+
         {/* Public */}
         <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
@@ -92,9 +103,11 @@ export default function App() {
         {/* Kitchen Display */}
         <Route path="/kds" element={<PrivateRoute allowedRoles={['admin', 'kitchen']}><KitchenDisplay /></PrivateRoute>} />
 
+        {/* Customer Dashboard */}
+        <Route path="/customer/dashboard" element={<PrivateRoute allowedRoles={['customer', 'admin']}><CustomerDashboard /></PrivateRoute>} />
+
         {/* Default redirects */}
-        <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

@@ -146,7 +146,7 @@ export const setSocketServer = (socketServer: SocketServer) => { io = socketServ
 
 export const getOrders = async (req: Request, res: Response) => {
   try {
-    const { search, status, session_id, customer_id, from_date, to_date, page = 1, limit = 20 } = req.query;
+    const { search, status, session_id, customer_id, table_id, from_date, to_date, page = 1, limit = 20 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
     const conditions: string[] = [];
     const params: any[] = [];
@@ -158,6 +158,7 @@ export const getOrders = async (req: Request, res: Response) => {
     if (status) { conditions.push(`o.status = $${idx++}`); params.push(status); }
     if (session_id) { conditions.push(`o.session_id = $${idx++}`); params.push(session_id); }
     if (customer_id) { conditions.push(`o.customer_id = $${idx++}`); params.push(customer_id); }
+    if (table_id) { conditions.push(`o.table_id = $${idx++}`); params.push(table_id); }
     if (from_date) { conditions.push(`o.created_at >= $${idx++}`); params.push(from_date); }
     if (to_date) { conditions.push(`o.created_at <= $${idx++}`); params.push(to_date); }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -353,8 +354,8 @@ export const updateOrder = async (req: AuthRequest, res: Response) => {
 
     await query(
       `UPDATE orders SET customer_id=$1, table_id=$2, subtotal=$3, tax_amount=$4,
-       discount_amount=$5, total=$6, promotion_discount=$7, notes=$8, updated_at=NOW() WHERE id=$9`,
-      [customer_id, table_id, subtotal, taxAmount, totalDiscount, total, promotionDiscount, notes, id]
+       discount_amount=$5, total=$6, promotion_discount=$7, notes=$8, employee_id=$9, updated_at=NOW() WHERE id=$10`,
+      [customer_id, table_id, subtotal, taxAmount, totalDiscount, total, promotionDiscount, notes, req.user!.id, id]
     );
 
     for (const item of processedItems) {
@@ -449,7 +450,7 @@ export const processPayment = async (req: AuthRequest, res: Response) => {
     }
 
     // Mark order as paid
-    await query(`UPDATE orders SET status = 'paid', updated_at = NOW() WHERE id = $1`, [id]);
+    await query(`UPDATE orders SET status = 'paid', employee_id = $2, updated_at = NOW() WHERE id = $1`, [id, req.user!.id]);
 
     // Update table
     if (order.rows[0].table_id) {
@@ -499,7 +500,11 @@ export const getKitchenTickets = async (req: Request, res: Response) => {
     const conditions: string[] = [`kt.stage != 'completed' OR (kt.stage = 'completed' AND kt.completed_at > NOW() - INTERVAL '1 hour')`];
     const params: any[] = [];
     let idx = 1;
-    if (stage) { conditions.push(`kt.stage = $${idx++}`); params.push(stage); }
+    if (stage) {
+      const stages = (stage as string).split(',');
+      conditions.push(`kt.stage = ANY($${idx++})`);
+      params.push(stages);
+    }
     const where = `WHERE ${conditions.join(' AND ')}`;
 
     const result = await query(
@@ -528,6 +533,13 @@ export const getKitchenTickets = async (req: Request, res: Response) => {
 export const updateKitchenTicket = async (req: AuthRequest, res: Response) => {
   try {
     const { stage } = req.body;
+    
+    if (stage === 'delivered') {
+      await query(`DELETE FROM kitchen_tickets WHERE id = $1`, [req.params.id]);
+      io?.emit('kitchen:ticket_updated', { ticket_id: req.params.id, stage: 'delivered' });
+      return res.json({ success: true, message: 'Ticket removed' });
+    }
+
     const extra = stage === 'preparing' ? `, started_at = NOW()` : stage === 'completed' ? `, completed_at = NOW()` : '';
     const result = await query(
       `UPDATE kitchen_tickets SET stage = $1${extra}, updated_at = NOW() WHERE id = $2 RETURNING *`,
@@ -628,3 +640,74 @@ export const getReports = async (req: Request, res: Response) => {
     return res.status(500).json({ success: false, message: 'Failed to generate reports' });
   }
 };
+
+export const createCustomerOrder = async (req: AuthRequest, res: Response) => {
+  try {
+    const { table_id, items, notes } = req.body;
+
+    if (!items?.length) return res.status(400).json({ success: false, message: 'Order must have at least one item' });
+    if (!table_id) return res.status(400).json({ success: false, message: 'Table is required' });
+
+    // Fetch customer profile for this user
+    const customerResult = await query(`SELECT id FROM customers WHERE user_id = $1`, [req.user!.id]);
+    const customerId = customerResult.rows[0]?.id || null;
+
+    // Generate order number
+    const count = await query(`SELECT COUNT(*) FROM orders WHERE DATE(created_at) = CURRENT_DATE`);
+    const orderNumber = `C-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Number(count.rows[0].count) + 1).padStart(4, '0')}`;
+
+    // Fetch product prices
+    const productIds = items.map((i: any) => i.product_id);
+    const productsResult = await query(`SELECT * FROM products WHERE id = ANY($1)`, [productIds]);
+    const productMap = new Map(productsResult.rows.map((p: any) => [p.id, p]));
+
+    let subtotal = 0;
+    let taxAmount = 0;
+    const processedItems = items.map((item: any) => {
+      const product = productMap.get(item.product_id);
+      if (!product) throw new Error(`Product ${item.product_id} not found`);
+      const price = product.price;
+      const lineTotal = price * item.quantity;
+      const tax = (lineTotal * product.tax) / 100;
+      subtotal += lineTotal;
+      taxAmount += tax;
+      return { ...item, price, line_total: lineTotal, tax: product.tax };
+    });
+
+    const total = subtotal + taxAmount;
+
+    // Create order with status 'draft' and no employee_id
+    const orderResult = await query(
+      `INSERT INTO orders (order_number, table_id, customer_id, employee_id, status, subtotal, tax_amount, total, notes)
+       VALUES ($1,$2,$3,NULL,'draft',$4,$5,$6,$7) RETURNING *`,
+      [orderNumber, table_id, customerId, subtotal, taxAmount, total, notes]
+    );
+    const order = orderResult.rows[0];
+
+    // Create order items
+    for (const item of processedItems) {
+      await query(
+        `INSERT INTO order_items (order_id, product_id, quantity, price, tax, line_total, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [order.id, item.product_id, item.quantity, item.price, item.tax, item.line_total, item.notes]
+      );
+    }
+
+    // Set table status to 'occupied'
+    await query(`UPDATE tables SET status = 'occupied' WHERE id = $1`, [table_id]);
+    io?.emit('table:status_changed', { table_id, status: 'occupied' });
+
+    // Emit order created socket notification
+    io?.emit('order:created', { order_id: order.id, order_number: orderNumber });
+
+    return res.status(201).json({
+      success: true,
+      data: { ...order, items: processedItems },
+      message: 'Order placed successfully. Waiting for cashier confirmation.'
+    });
+  } catch (error: any) {
+    console.error('[CUSTOMER ORDER] Create error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to place order' });
+  }
+};
+

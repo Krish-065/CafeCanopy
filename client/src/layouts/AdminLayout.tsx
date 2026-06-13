@@ -49,17 +49,31 @@ export default function AdminLayout() {
 
         <nav className="sidebar-nav">
           <div className="nav-section-label">Navigation</div>
-          {NAV_ITEMS.map(item => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <span style={{ fontSize: 16 }}>{item.icon}</span>
-              {item.label}
-            </NavLink>
-          ))}
+          {(() => {
+            const hiddenForEmployee = [
+              '/admin/employees',
+              '/admin/payment-methods',
+              '/admin/settings',
+              '/admin/reports'
+            ];
+            const filteredItems = NAV_ITEMS.filter(item => {
+              if (user?.role === 'employee') {
+                return !hiddenForEmployee.includes(item.path);
+              }
+              return true;
+            });
+            return filteredItems.map(item => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <span style={{ fontSize: 16 }}>{item.icon}</span>
+                {item.label}
+              </NavLink>
+            ));
+          })()}
           <div className="nav-section-label" style={{ marginTop: 8 }}>Quick Access</div>
           <NavLink to="/pos" className="nav-item" target="_blank">
             <span style={{ fontSize: 16 }}>🖥️</span>

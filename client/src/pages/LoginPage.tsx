@@ -56,15 +56,7 @@ export default function LoginPage() {
             <span className="auth-logo-name">CafeCanopy</span>
           </div>
           <h2 className="auth-title">Sign in</h2>
-          <p className="auth-subtitle">Enter your credentials to continue</p>
-
-          {/* Demo credentials */}
-          <div style={{ background: 'var(--cream-200)', borderRadius: 10, padding: '12px 14px', marginBottom: 24, fontSize: 12 }}>
-            <div style={{ fontWeight: 700, marginBottom: 6, color: 'var(--brown-700)' }}>Demo Credentials</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, color: 'var(--text-secondary)' }}>
-              <span>👑 Admin: admin@cafecanopy.com / Admin@123</span>
-            </div>
-          </div>
+          <p className="auth-subtitle">Select your workspace and enter credentials</p>
 
           <form onSubmit={handleSubmit}>
             <div className="form-group">
@@ -96,7 +88,7 @@ export default function LoginPage() {
           </form>
 
           <p style={{ textAlign: 'center', marginTop: 20, fontSize: 14, color: 'var(--text-muted)' }}>
-            New customer?{' '}
+            New owner/member?{' '}
             <Link to="/register" style={{ color: 'var(--brown-600)', fontWeight: 600 }}>Create account</Link>
           </p>
         </div>

@@ -3,20 +3,22 @@ import { kitchenAPI } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import toast from 'react-hot-toast';
 import { format, differenceInMinutes } from 'date-fns';
+import { useAuthStore } from '../store';
+import { useNavigate } from 'react-router-dom';
 
 interface KDSTicket {
   id: string;
   order_number: string;
   table_number: string;
-  stage: 'pending' | 'in_progress' | 'ready' | 'delivered';
+  stage: 'to_cook' | 'preparing' | 'completed' | 'delivered';
   created_at: string;
   items: { id: string; name: string; quantity: number; notes: string; kitchen_status: string }[];
 }
 
 const STAGES: { key: KDSTicket['stage']; label: string; color: string; next?: string }[] = [
-  { key: 'pending', label: 'New Orders', color: '#E09437', next: 'in_progress' },
-  { key: 'in_progress', label: 'Cooking', color: '#4A90C4', next: 'ready' },
-  { key: 'ready', label: 'Ready to Serve', color: '#3DAB6B' },
+  { key: 'to_cook', label: 'New Orders', color: '#E09437', next: 'preparing' },
+  { key: 'preparing', label: 'Cooking', color: '#4A90C4', next: 'completed' },
+  { key: 'completed', label: 'Ready to Serve', color: '#3DAB6B' },
 ];
 
 function getTimeMins(dateStr: string) {
@@ -24,14 +26,22 @@ function getTimeMins(dateStr: string) {
 }
 
 export default function KitchenDisplay() {
+  const navigate = useNavigate();
+  const { clearAuth } = useAuthStore();
   const [tickets, setTickets] = useState<KDSTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  const handleLogout = () => {
+    clearAuth();
+    navigate('/');
+    toast.success('Signed out successfully');
+  };
+
   const load = useCallback(async () => {
     try {
-      const { data } = await kitchenAPI.getTickets({ stage: 'pending,in_progress,ready' });
+      const { data } = await kitchenAPI.getTickets({ stage: 'to_cook,preparing,completed' });
       setTickets(data.data || []);
     } catch { /* silent */ }
     finally { setLoading(false); }
@@ -43,14 +53,14 @@ export default function KitchenDisplay() {
     const timeInterval = setInterval(() => setCurrentTime(new Date()), 1000);
 
     const socket = getSocket();
-    socket.on('kitchen:order_updated', () => load());
-    socket.on('kitchen:new_order', () => { load(); toast('🍳 New order received!', { icon: '🔔' }); });
+    socket.on('kitchen:ticket_updated', () => load());
+    socket.on('kitchen:new_ticket', () => { load(); toast('🍳 New order received!', { icon: '🔔' }); });
 
     return () => {
       clearInterval(interval);
       clearInterval(timeInterval);
-      socket.off('kitchen:order_updated');
-      socket.off('kitchen:new_order');
+      socket.off('kitchen:ticket_updated');
+      socket.off('kitchen:new_ticket');
     };
   }, [load]);
 
@@ -101,6 +111,7 @@ export default function KitchenDisplay() {
             {format(currentTime, 'HH:mm:ss')}
           </div>
           <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none' }} onClick={load}>↻</button>
+          <button className="btn btn-sm btn-danger" style={{ fontWeight: 700 }} onClick={handleLogout}>Sign Out</button>
         </div>
       </div>
 
@@ -160,20 +171,20 @@ export default function KitchenDisplay() {
                             className="btn btn-sm"
                             style={{
                               flex: 1,
-                              background: stage.key === 'pending' ? 'var(--info-bg)' : 'var(--success-bg)',
-                              color: stage.key === 'pending' ? 'var(--info)' : 'var(--success)',
-                              border: `1px solid ${stage.key === 'pending' ? 'rgba(74,144,196,0.3)' : 'rgba(61,171,107,0.3)'}`,
+                              background: stage.key === 'to_cook' ? 'var(--info-bg)' : 'var(--success-bg)',
+                              color: stage.key === 'to_cook' ? 'var(--info)' : 'var(--success)',
+                              border: `1px solid ${stage.key === 'to_cook' ? 'rgba(74,144,196,0.3)' : 'rgba(61,171,107,0.3)'}`,
                               fontWeight: 700,
                             }}
                             onClick={() => updateTicket(ticket.id, stage.next!)}
                             disabled={updating === ticket.id}
                           >
                             {updating === ticket.id ? <span className="spinner spinner-sm" style={{ borderTopColor: 'currentColor' }} /> : null}
-                            {stage.key === 'pending' ? '👨‍🍳 Start Cooking' : '✅ Mark Ready'}
+                            {stage.key === 'to_cook' ? '👨‍🍳 Start Cooking' : '✅ Mark Ready'}
                           </button>
                         </div>
                       )}
-                      {stage.key === 'ready' && (
+                      {stage.key === 'completed' && (
                         <div className="kds-ticket-footer">
                           <button
                             className="btn btn-sm btn-full"

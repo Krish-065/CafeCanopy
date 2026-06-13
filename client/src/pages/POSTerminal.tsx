@@ -76,7 +76,7 @@ export default function POSTerminal() {
         productsAPI.getAll({ active: 'true', limit: 200 }),
         categoriesAPI.getAll({ active: 'true' }),
         import('../lib/api').then(m => m.paymentMethodsAPI.getAll({ active: 'true' })),
-        tablesAPI.getAll({ status: 'available' }),
+        tablesAPI.getAll(),
       ]);
       setProducts(prodRes.data.data);
       setCategories(catRes.data.data);
@@ -90,8 +90,17 @@ export default function POSTerminal() {
   // Socket
   useEffect(() => {
     const socket = getSocket();
-    socket.on('order:paid', () => { /* refresh */ });
-    return () => { socket.off('order:paid'); };
+    const handleRefresh = () => {
+      loadProducts();
+    };
+    socket.on('order:created', handleRefresh);
+    socket.on('order:paid', handleRefresh);
+    socket.on('table:status_changed', handleRefresh);
+    return () => {
+      socket.off('order:created', handleRefresh);
+      socket.off('order:paid', handleRefresh);
+      socket.off('table:status_changed', handleRefresh);
+    };
   }, []);
 
   // Filtered products
@@ -177,6 +186,12 @@ export default function POSTerminal() {
         });
         orderId = data.data.id;
         store.setOrderId(orderId);
+      } else {
+        await ordersAPI.update(orderId, {
+          table_id: store.selectedTable?.id,
+          customer_id: store.selectedCustomer?.id,
+          items: store.cartItems.map(i => ({ product_id: i.product_id, quantity: i.quantity, notes: i.notes })),
+        });
       }
       await ordersAPI.sendToKitchen(orderId!);
       toast.success('Order sent to kitchen! 🍳');
@@ -201,6 +216,12 @@ export default function POSTerminal() {
           coupon_code: store.appliedCoupon?.code,
         });
         orderId = data.data.id;
+      } else {
+        await ordersAPI.update(orderId, {
+          table_id: store.selectedTable?.id,
+          customer_id: store.selectedCustomer?.id,
+          items: store.cartItems.map(i => ({ product_id: i.product_id, quantity: i.quantity, notes: i.notes })),
+        });
       }
 
       const total = store.cartTotal();
@@ -518,13 +539,61 @@ export default function POSTerminal() {
             <div className="modal-body">
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 10 }}>
                 {tables.map(t => (
-                  <div key={t.id} className="table-tile available" style={{ height: 80 }}
-                    onClick={() => { store.setTable(t); setShowTableModal(false); toast.success(`Table ${t.table_number} selected`); }}>
+                  <div key={t.id} className={`table-tile ${t.status || 'available'}`} style={{ height: 80 }}
+                    onClick={async () => {
+                      store.setTable(t);
+                      setShowTableModal(false);
+                      
+                      try {
+                        const { data } = await ordersAPI.getAll({ table_id: t.id, status: 'draft' });
+                        const activeOrder = data.data?.[0];
+                        if (activeOrder) {
+                          const detailRes = await ordersAPI.getOne(activeOrder.id);
+                          const orderDetails = detailRes.data.data;
+                          
+                          store.clearCart();
+                          store.setTable(t);
+                          store.setOrderId(orderDetails.id);
+                          
+                          if (orderDetails.customer_id) {
+                            store.setCustomer({ id: orderDetails.customer_id, name: orderDetails.customer_name || 'Customer' });
+                          }
+                          if (orderDetails.coupon_id) {
+                            store.setCoupon({
+                              id: orderDetails.coupon_id,
+                              code: orderDetails.coupon_code,
+                              calculated_discount: Number(orderDetails.coupon_discount || 0)
+                            });
+                          }
+                          
+                          for (const item of orderDetails.items) {
+                            store.addItem({
+                              product_id: item.product_id,
+                              name: item.product_name,
+                              price: Number(item.price),
+                              quantity: 1,
+                              tax: Number(item.tax)
+                            });
+                            store.updateQuantity(item.product_id, item.quantity);
+                          }
+                          toast.success(`Loaded draft order for Table ${t.table_number}`);
+                        } else {
+                          store.clearCart();
+                          store.setTable(t);
+                          toast.success(`Table ${t.table_number} selected`);
+                        }
+                      } catch (err) {
+                        toast.error('Failed to load table order');
+                      }
+                    }}>
                     <div className="table-num">{t.table_number}</div>
                     <div className="table-seats">👥 {t.seats}</div>
+                    <div style={{ fontSize: 10, textTransform: 'capitalize', marginTop: 2, opacity: 0.8 }}>
+                      {t.status || 'available'}
+                    </div>
                   </div>
                 ))}
-                {tables.length === 0 && <div style={{ gridColumn: '1/-1', textAlign: 'center', color: 'var(--text-muted)' }}>No available tables</div>}
+                {tables.length === 0 && <div style={{ gridColumn: '1/-1', textAlign: 'center', color: 'var(--text-muted)' }}>No tables found</div>}
               </div>
               {store.selectedTable && (
                 <div style={{ marginTop: 12 }}>

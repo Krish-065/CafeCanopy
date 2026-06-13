@@ -1,9 +1,33 @@
 import { Router } from 'express';
 import { authenticate, customerOrAdmin } from '../middleware/auth';
 import { query } from '../db';
+import { createCustomerOrder } from '../controllers/pos.controller';
 
 const router = Router();
 router.use(authenticate);
+
+// Place order on a table
+router.post('/orders', customerOrAdmin, createCustomerOrder);
+
+// Fetch all active tables
+router.get('/tables', customerOrAdmin, async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM tables WHERE active = true ORDER BY table_number ASC');
+    return res.json({ success: true, data: result.rows });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Failed to fetch tables' });
+  }
+});
+
+// Fetch active coupons
+router.get('/coupons', customerOrAdmin, async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM coupons WHERE active = true AND (valid_until IS NULL OR valid_until > NOW())');
+    return res.json({ success: true, data: result.rows });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Failed to fetch coupons' });
+  }
+});
 
 // Customer dashboard
 router.get('/dashboard', customerOrAdmin, async (req: any, res) => {
@@ -24,7 +48,7 @@ router.get('/dashboard', customerOrAdmin, async (req: any, res) => {
     const recentOrders = await query(
       `SELECT o.*, json_agg(json_build_object('name', p.name, 'quantity', oi.quantity)) as items
        FROM orders o JOIN order_items oi ON oi.order_id = o.id JOIN products p ON oi.product_id = p.id
-       WHERE o.customer_id = $1 AND o.status = 'paid' GROUP BY o.id ORDER BY o.created_at DESC LIMIT 5`,
+       WHERE o.customer_id = $1 GROUP BY o.id ORDER BY o.created_at DESC LIMIT 5`,
       [customer.rows[0].id]
     );
 

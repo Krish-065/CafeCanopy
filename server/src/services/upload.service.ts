@@ -1,17 +1,7 @@
 import { Request, Response } from 'express';
 import multer from 'multer';
-import { v2 as cloudinary } from 'cloudinary';
 import path from 'path';
 import fs from 'fs';
-
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-const useCloudinary = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY);
 
 // Multer config
 const storage = multer.diskStorage({
@@ -41,20 +31,8 @@ export const handleImageUpload = async (req: Request, res: Response) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
 
-    let imageUrl: string;
-
-    if (useCloudinary) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: 'cafecanopy/products',
-        transformation: [{ width: 800, height: 800, crop: 'limit', quality: 'auto' }],
-      });
-      imageUrl = result.secure_url;
-      // Clean up local file
-      fs.unlinkSync(req.file.path);
-    } else {
-      // Serve locally
-      imageUrl = `/uploads/${req.file.filename}`;
-    }
+    // Save and serve locally from the /uploads static directory
+    const imageUrl = `/uploads/${req.file.filename}`;
 
     return res.json({ success: true, data: { url: imageUrl } });
   } catch (error: any) {

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { query } from '../db';
 import { AuthRequest } from '../middleware/auth';
 import { Server as SocketServer } from 'socket.io';
+import { sendReceiptEmail } from '../services/email.service';
 
 // Promotion engine - calculates discounts automatically
 export const applyPromotions = async (items: any[], orderTotal: number) => {
@@ -325,8 +326,8 @@ export const updateOrder = async (req: AuthRequest, res: Response) => {
     // Only draft orders can be edited
     const existing = await query(`SELECT * FROM orders WHERE id = $1`, [id]);
     if (!existing.rows[0]) return res.status(404).json({ success: false, message: 'Order not found' });
-    if (existing.rows[0].status !== 'draft') {
-      return res.status(400).json({ success: false, message: 'Only draft orders can be edited' });
+    if (existing.rows[0].status === 'paid' || existing.rows[0].status === 'cancelled') {
+      return res.status(400).json({ success: false, message: 'Paid or cancelled orders cannot be edited' });
     }
 
     // Delete existing items and recalculate
@@ -485,6 +486,52 @@ export const processPayment = async (req: AuthRequest, res: Response) => {
 
     io?.emit('order:paid', { order_id: id, order_number: order.rows[0].order_number });
     io?.emit('dashboard:stats_updated');
+
+    // Send receipt email asynchronously to the customer if registered
+    if (order.rows[0].customer_id) {
+      (async () => {
+        try {
+          const customerRes = await query(`SELECT email FROM customers WHERE id = $1`, [order.rows[0].customer_id]);
+          const customerEmail = customerRes.rows[0]?.email;
+          if (customerEmail) {
+            const [fullOrderRes, itemsRes, paymentsRes, settingsRes] = await Promise.all([
+              query(`SELECT o.*, t.table_number FROM orders o LEFT JOIN tables t ON o.table_id = t.id WHERE o.id = $1`, [id]),
+              query(`SELECT oi.*, p.name as product_name FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = $1`, [id]),
+              query(`SELECT p.*, pm.name as payment_method_name FROM payments p JOIN payment_methods pm ON p.payment_method_id = pm.id WHERE p.order_id = $1`, [id]),
+              query(`SELECT * FROM settings`),
+            ]);
+
+            const settingsMap: Record<string, string> = {};
+            settingsRes.rows.forEach((r: any) => {
+              settingsMap[r.key] = r.value;
+            });
+
+            await sendReceiptEmail(customerEmail, {
+              order: {
+                ...fullOrderRes.rows[0],
+                subtotal: parseFloat(fullOrderRes.rows[0].subtotal || 0),
+                tax_amount: parseFloat(fullOrderRes.rows[0].tax_amount || 0),
+                discount_amount: parseFloat(fullOrderRes.rows[0].discount_amount || 0),
+                total: parseFloat(fullOrderRes.rows[0].total || 0),
+              },
+              items: itemsRes.rows.map((item: any) => ({
+                ...item,
+                price: parseFloat(item.price || 0),
+                line_total: parseFloat(item.line_total || 0),
+              })),
+              payments: paymentsRes.rows.map((pay: any) => ({
+                ...pay,
+                amount: parseFloat(pay.amount || 0),
+              })),
+              settings: settingsMap,
+            });
+            console.log(`[PAYMENT] Receipt successfully emailed to ${customerEmail}`);
+          }
+        } catch (mailErr) {
+          console.error('[PAYMENT] Failed to send receipt email:', mailErr);
+        }
+      })();
+    }
 
     return res.json({ success: true, message: 'Payment processed successfully' });
   } catch (error: any) {

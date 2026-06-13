@@ -180,7 +180,7 @@ export default function CustomerDashboard() {
 
       {/* Main Grid */}
       <div style={{ padding: '32px 8%', display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 32 }}>
-        
+
         {/* Left Area: Main Interaction */}
         <div>
           {/* Customer Loyalty Profile Card */}
@@ -276,7 +276,7 @@ export default function CustomerDashboard() {
                         <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--brown-800)', marginBottom: 4 }}>{p.name}</h4>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
                           <span style={{ fontWeight: 700, color: 'var(--brown-600)' }}>{formatCurrency(p.price)}</span>
-                          
+
                           {qty > 0 ? (
                             <div className="qty-controls" style={{ transform: 'scale(0.9)' }}>
                               <button className="qty-btn" onClick={() => removeFromCart(p.id)}>−</button>
@@ -322,11 +322,10 @@ export default function CustomerDashboard() {
                           </div>
                         </td>
                         <td>
-                          <span className={`badge ${
-                            o.status === 'paid' ? 'badge-success' :
-                            o.status === 'preparing' ? 'badge-warning' :
-                            o.status === 'draft' ? 'badge-gray' : 'badge-info'
-                          }`} style={{ textTransform: 'capitalize' }}>
+                          <span className={`badge ${o.status === 'paid' ? 'badge-success' :
+                              o.status === 'preparing' ? 'badge-warning' :
+                                o.status === 'draft' ? 'badge-gray' : 'badge-info'
+                            }`} style={{ textTransform: 'capitalize' }}>
                             {o.status === 'draft' ? 'Waiting Confirmation' : o.status.replace(/_/g, ' ')}
                           </span>
                         </td>
@@ -374,7 +373,7 @@ export default function CustomerDashboard() {
         <div style={{ position: 'sticky', top: 96, height: 'fit-content' }}>
           <div className="card" style={{ padding: 20 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 16 }}>My Cart</h3>
-            
+
             {getCartItemsCount() === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
                 <span style={{ fontSize: 32 }}>🛒</span>

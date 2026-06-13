@@ -12,7 +12,7 @@ export default function GetStartedPage() {
     const refreshToken = localStorage.getItem('refreshToken') || '';
     try {
       await authAPI.logout(refreshToken);
-    } catch {}
+    } catch { }
     clearAuth();
     toast.success('Signed out successfully');
   };

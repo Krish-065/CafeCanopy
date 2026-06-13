@@ -420,7 +420,7 @@ export default function POSTerminal() {
                   <div 
                     key={p.id} 
                     className="product-list-item" 
-                    onClick={() => store.addItem({ product_id: p.id, name: p.name, price: p.price, quantity: 1, tax: p.tax, image_url: p.image_url, category_color: p.category_color })}
+                    onClick={() => store.addItem({ product_id: p.id, name: p.name, price: p.price, quantity: 1, tax: p.tax, category_color: p.category_color })}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <span style={{ width: 6, height: 24, borderRadius: 3, background: p.category_color || 'var(--brown-300)' }} />

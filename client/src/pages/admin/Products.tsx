@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Edit2, Trash2 } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { Trash2 } from 'lucide-react';
 import { productsAPI, categoriesAPI } from '../../lib/api';
 import toast from 'react-hot-toast';
 
@@ -23,7 +23,6 @@ export default function ProductsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editProduct, setEditProduct] = useState<Partial<Product> | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const limit = 12;
@@ -96,17 +95,7 @@ export default function ProductsPage() {
     } catch { toast.error('Bulk archive failed'); }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const { data } = await productsAPI.uploadImage(file);
-      setEditProduct(p => ({ ...p, image_url: data.data.url }));
-      toast.success('Image uploaded');
-    } catch { toast.error('Upload failed'); }
-    finally { setUploading(false); }
-  };
+
 
   const totalPages = Math.ceil(total / limit);
 
@@ -165,11 +154,6 @@ export default function ProductsPage() {
                   style={{ position: 'absolute', top: 14, right: 12, width: 16, height: 16, cursor: 'pointer' }}
                 />
                 <div style={{ display: 'flex', gap: 12, padding: '12px 12px 0' }}>
-                  {p.image_url ? (
-                    <img src={p.image_url} alt={p.name} style={{ width: 70, height: 70, objectFit: 'cover', borderRadius: 10, flexShrink: 0 }} />
-                  ) : (
-                    <div style={{ width: 70, height: 70, background: 'var(--cream-200)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, flexShrink: 0 }}>🍽️</div>
-                  )}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, lineHeight: 1.3 }}>{p.name}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
@@ -242,16 +226,7 @@ export default function ProductsPage() {
                     {UNITS.map(u => <option key={u}>{u}</option>)}
                   </select>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Product Image</label>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {editProduct.image_url && <img src={editProduct.image_url} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} />}
-                    <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
-                      {uploading ? '⏳ Uploading...' : '📁 Upload Image'}
-                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageUpload} />
-                    </label>
-                  </div>
-                </div>
+
               </div>
               <div className="form-group">
                 <label className="form-label">Description</label>

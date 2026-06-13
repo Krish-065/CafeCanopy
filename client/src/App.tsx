@@ -107,35 +107,39 @@ const CustomCursor = () => {
 
   return (
     <>
+      {/* Inner Dot */}
       <div
         style={{
           position: 'fixed',
           top: 0,
           left: 0,
-          width: 8,
-          height: 8,
+          width: 6,
+          height: 6,
           borderRadius: '50%',
-          background: 'var(--brown-600)',
+          background: 'var(--brown-500)',
           pointerEvents: 'none',
           zIndex: 9999,
-          transform: `translate3d(${position.x - 4}px, ${position.y - 4}px, 0) scale(${clicked ? 0.8 : 1})`,
-          transition: 'transform 0.05s ease-out',
+          transform: `translate3d(${position.x - 3}px, ${position.y - 3}px, 0) scale(${clicked ? 0.8 : 1})`,
+          transition: 'transform 0.08s cubic-bezier(0.25, 1, 0.5, 1)',
+          boxShadow: '0 0 10px rgba(158, 116, 68, 0.6)',
         }}
       />
+      {/* Outer Ring */}
       <div
         style={{
           position: 'fixed',
           top: 0,
           left: 0,
-          width: 32,
-          height: 32,
+          width: 36,
+          height: 36,
           borderRadius: '50%',
-          border: '1.5px solid var(--brown-400)',
+          border: linkHovered ? '1px solid rgba(158, 116, 68, 0.6)' : '1px solid rgba(158, 116, 68, 0.25)',
           pointerEvents: 'none',
           zIndex: 9998,
-          transform: `translate3d(${position.x - 16}px, ${position.y - 16}px, 0) scale(${linkHovered ? 1.5 : clicked ? 0.9 : 1})`,
-          background: linkHovered ? 'rgba(184, 149, 95, 0.1)' : 'transparent',
-          transition: 'transform 0.15s ease-out, background-color 0.15s ease-out',
+          transform: `translate3d(${position.x - 18}px, ${position.y - 18}px, 0) scale(${linkHovered ? 1.4 : clicked ? 0.85 : 1})`,
+          background: linkHovered ? 'rgba(158, 116, 68, 0.08)' : 'transparent',
+          boxShadow: linkHovered ? '0 0 15px rgba(158, 116, 68, 0.15)' : 'none',
+          transition: 'transform 0.18s cubic-bezier(0.25, 1, 0.5, 1), background-color 0.25s, border-color 0.25s, box-shadow 0.25s',
         }}
       />
     </>

@@ -1,4 +1,4 @@
-# 🌿 CafeCanopy
+# CafeCanopy
 
 > **Modern, Premium Full-Stack Restaurant Point of Sale (POS) & Management System**
 
@@ -6,18 +6,18 @@ CafeCanopy is a state-of-the-art, web-based restaurant management system built t
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
-* **📦 Unified POS Terminal**: Clean scrollable product list sorted by categories, instant search across all items, dynamic cart modifications, and direct table/customer selection.
-* **⚡ Real-time Kitchen Display System (KDS)**: Instant synchronization of orders from the POS terminal to the kitchen staff using WebSockets.
-* **📊 Comprehensive Reporting & Analytics**: Real-time sales charts, revenue breakdown by payment method, and employee performance tracking.
-* **💳 QR-Based UPI Payments**: Automatic QR code generator dynamically scaling to show the exact checkout bill amount with env-configured UPI merchant IDs.
-* **🔐 Role-Based Access Control (RBAC)**: Secure access segments for `Admin`, `Employee` (Cashier), `Kitchen` (Chef), and `Customer` roles.
-* **🏢 Space & Floor Management**: Multi-floor layout configuration (`Main Floor`, `Rooftop Canopy`) with interactive table seating statuses.
+* **Unified POS Terminal**: Clean scrollable product list sorted by categories, instant search across all items, dynamic cart modifications, and direct table/customer selection.
+* **Real-time Kitchen Display System (KDS)**: Instant synchronization of orders from the POS terminal to the kitchen staff using WebSockets.
+* **Comprehensive Reporting & Analytics**: Real-time sales charts, revenue breakdown by payment method, and employee performance tracking.
+* **QR-Based UPI Payments**: Automatic QR code generator dynamically scaling to show the exact checkout bill amount with env-configured UPI merchant IDs.
+* **Role-Based Access Control (RBAC)**: Secure access segments for `Admin`, `Employee` (Cashier), `Kitchen` (Chef), and `Customer` roles.
+* **Space & Floor Management**: Multi-floor layout configuration (`Main Floor`, `Rooftop Canopy`) with interactive table seating statuses.
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 | Layer | Technologies |
 | :--- | :--- |
@@ -28,7 +28,7 @@ CafeCanopy is a state-of-the-art, web-based restaurant management system built t
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 CafeCanopy/
@@ -54,12 +54,12 @@ CafeCanopy/
 
 ---
 
-## ⚙️ Setup & Installation
+## Setup & Installation
 
 ### 1. Prerequisites
 Make sure you have the following installed on your machine:
 * **Node.js** (v18 or higher)
-* **PostgreSQL 17** (Local service or a cloud-hosted database like [Neon Database](https://neon.tech))
+* **PostgreSQL 17** (Local service or a cloud-hosted database like Neon Database)
 
 ---
 
@@ -118,7 +118,7 @@ Make sure you have the following installed on your machine:
 
 ---
 
-## 💻 Running the Application
+## Running the Application
 
 Open two terminals and start the development servers:
 
@@ -138,7 +138,7 @@ npm run dev
 
 ---
 
-## 🔑 Default Credentials
+## Default Credentials
 
 The seed script initializes three default users with different authorization tiers:
 
@@ -147,9 +147,3 @@ The seed script initializes three default users with different authorization tie
 | **Admin** | `admin@cafecanopy.com` | `admin123` |
 | **Cashier / Employee** | `cashier@cafecanopy.com` | `pos123` |
 | **Kitchen / Chef** | `kitchen@cafecanopy.com` | `kitchen123` |
-
----
-
-## 🛡️ License
-
-Distributed under the MIT License. See `LICENSE` for more information.

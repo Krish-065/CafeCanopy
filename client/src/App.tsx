@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './store';
@@ -27,14 +27,15 @@ import SettingsPage from './pages/admin/Settings';
 // POS & Kitchen
 import POSTerminal from './pages/POSTerminal';
 import KitchenDisplay from './pages/KitchenDisplay';
-import CustomerDashboard from './pages/customer/Dashboard';
 
-// Guards
 const PrivateRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) => {
   const { isAuthenticated, user } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  if (!mounted) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    if (user.role === 'customer') return <Navigate to="/customer/dashboard" replace />;
     if (user.role === 'kitchen') return <Navigate to="/kds" replace />;
     return <Navigate to="/admin/dashboard" replace />;
   }
@@ -43,11 +44,14 @@ const PrivateRoute = ({ children, allowedRoles }: { children: React.ReactNode; a
 
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, user } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  if (!mounted) return null;
   if (isAuthenticated) {
     if (user?.role === 'admin') return <Navigate to="/admin/dashboard" replace />;
     if (user?.role === 'employee') return <Navigate to="/pos" replace />;
     if (user?.role === 'kitchen') return <Navigate to="/kds" replace />;
-    if (user?.role === 'customer') return <Navigate to="/customer/dashboard" replace />;
     return <Navigate to="/" replace />;
   }
   return <>{children}</>;
@@ -102,9 +106,6 @@ export default function App() {
 
         {/* Kitchen Display */}
         <Route path="/kds" element={<PrivateRoute allowedRoles={['admin', 'kitchen']}><KitchenDisplay /></PrivateRoute>} />
-
-        {/* Customer Dashboard */}
-        <Route path="/customer/dashboard" element={<PrivateRoute allowedRoles={['customer', 'admin']}><CustomerDashboard /></PrivateRoute>} />
 
         {/* Default redirects */}
         <Route path="*" element={<Navigate to="/" replace />} />

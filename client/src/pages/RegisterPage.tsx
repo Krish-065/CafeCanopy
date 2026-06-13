@@ -10,12 +10,12 @@ export default function RegisterPage() {
   const [searchParams] = useSearchParams();
   const setAuth = useAuthStore(s => s.setAuth);
   const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
-  const [role, setRole] = useState<'admin' | 'employee' | 'kitchen' | 'customer'>('admin');
+  const [role, setRole] = useState<'admin' | 'employee' | 'kitchen'>('admin');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const roleParam = searchParams.get('role');
-    if (roleParam && ['admin', 'employee', 'kitchen', 'customer'].includes(roleParam)) {
+    if (roleParam && ['admin', 'employee', 'kitchen'].includes(roleParam)) {
       setRole(roleParam as any);
     }
   }, [searchParams]);
@@ -35,8 +35,6 @@ export default function RegisterPage() {
       
       if (user.role === 'kitchen') {
         navigate('/kds');
-      } else if (user.role === 'customer') {
-        navigate('/customer/dashboard');
       } else {
         navigate('/admin/dashboard');
       }
@@ -97,7 +95,6 @@ export default function RegisterPage() {
                 <option value="admin">Cafe Owner / Admin</option>
                 <option value="employee">Cashier / POS Staff</option>
                 <option value="kitchen">Kitchen Staff</option>
-                <option value="customer">Loyalty Customer</option>
               </select>
             </div>
             <div className="form-group">

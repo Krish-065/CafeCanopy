@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuthStore, usePOSStore } from '../store';
-import { productsAPI, categoriesAPI, sessionsAPI, ordersAPI, customersAPI, couponsAPI, tablesAPI } from '../lib/api';
+import { productsAPI, categoriesAPI, sessionsAPI, ordersAPI, customersAPI, couponsAPI, tablesAPI, authAPI } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -12,8 +12,16 @@ const formatCurrency = (n: number) => `₹${Number(n || 0).toFixed(2)}`;
 
 export default function POSTerminal() {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, clearAuth } = useAuthStore();
   const store = usePOSStore();
+
+  const handleLogout = async () => {
+    const refreshToken = localStorage.getItem('refreshToken') || '';
+    try { await authAPI.logout(refreshToken); } catch {}
+    clearAuth();
+    navigate('/login');
+    toast.success('Logged out successfully');
+  };
 
   // Data
   const [products, setProducts] = useState<any[]>([]);
@@ -22,7 +30,8 @@ export default function POSTerminal() {
   const [tables, setTables] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState('');
+
 
   // Session
   const [sessionLoading, setSessionLoading] = useState(true);
@@ -85,8 +94,10 @@ export default function POSTerminal() {
       setPaymentMethods(payRes.data.data);
       setTables(tableRes.data.data);
       if (payRes.data.data[0]) setActivePayMethod(payRes.data.data[0].id);
+      if (catRes.data.data[0]) setSelectedCategory(catRes.data.data[0].id);
     } catch { toast.error('Failed to load POS data'); }
     finally { setLoading(false); }
+
   };
 
   // Socket
@@ -108,7 +119,7 @@ export default function POSTerminal() {
   // Filtered products
   const filtered = products.filter(p => {
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
-    const matchCat = selectedCategory === 'all' || p.category_id === selectedCategory;
+    const matchCat = search ? true : (selectedCategory === 'all' || p.category_id === selectedCategory);
     return matchSearch && matchCat;
   });
 
@@ -327,9 +338,15 @@ export default function POSTerminal() {
           </div>
         )}
 
-        <button className="btn btn-primary btn-full btn-xl" onClick={() => { setSessionStats(null); setClosingAmount(''); setShowSessionOpen(true); }}>
-          Acknowledge & Close
-        </button>
+        {user?.role === 'employee' ? (
+          <button className="btn btn-primary btn-full btn-xl" onClick={handleLogout}>
+            Acknowledge & Log Out
+          </button>
+        ) : (
+          <button className="btn btn-primary btn-full btn-xl" onClick={() => { setSessionStats(null); setClosingAmount(''); setShowSessionOpen(true); }}>
+            Acknowledge & Close
+          </button>
+        )}
       </div>
     </div>
   );
@@ -346,7 +363,11 @@ export default function POSTerminal() {
           <input className="form-control" type="number" min="0" value={openingAmount} onChange={e => setOpeningAmount(e.target.value)} placeholder="e.g. 1000" style={{ textAlign: 'center', fontSize: 20, fontWeight: 700 }} />
         </div>
         <button className="btn btn-primary btn-full btn-xl" onClick={openSession}>Open Session</button>
-        <button className="btn btn-ghost btn-sm" style={{ marginTop: 10, width: '100%' }} onClick={() => navigate('/admin/dashboard')}>← Back to Dashboard</button>
+        {user?.role === 'employee' ? (
+          <button className="btn btn-ghost btn-sm" style={{ marginTop: 10, width: '100%' }} onClick={handleLogout}>Log Out</button>
+        ) : (
+          <button className="btn btn-ghost btn-sm" style={{ marginTop: 10, width: '100%' }} onClick={() => navigate('/admin/dashboard')}>← Back to Dashboard</button>
+        )}
       </div>
     </div>
   );
@@ -378,7 +399,6 @@ export default function POSTerminal() {
 
         {/* Category Tabs */}
         <div className="category-tabs">
-          <div className={`category-tab ${selectedCategory === 'all' ? 'active' : ''}`} onClick={() => setSelectedCategory('all')}>All</div>
           {categories.map(c => (
             <div key={c.id} className={`category-tab ${selectedCategory === c.id ? 'active' : ''}`} onClick={() => setSelectedCategory(c.id)}>
               <span className="cat-dot" style={{ background: c.color }} />
@@ -387,30 +407,46 @@ export default function POSTerminal() {
           ))}
         </div>
 
-        {/* Product Grid */}
+
+        {/* Product List */}
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><div className="spinner spinner-lg" /></div>
         ) : (
-          <div className="product-grid">
-            {filtered.map(p => {
-              const inCart = store.cartItems.find(i => i.product_id === p.id);
-              return (
-                <div key={p.id} className="product-card" onClick={() => store.addItem({ product_id: p.id, name: p.name, price: p.price, quantity: 1, tax: p.tax, image_url: p.image_url, category_color: p.category_color })}>
-                  <div className="product-cat-bar" style={{ background: p.category_color || 'var(--brown-300)' }} />
-                  {p.image_url ? (
-                    <img className="product-img" src={p.image_url} alt={p.name} />
-                  ) : (
-                    <div className="product-img-placeholder" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Utensils size={32} style={{ color: 'var(--brown-400)' }} /></div>
-                  )}
-                  {inCart && <div className="in-cart-badge">{inCart.quantity}</div>}
-                  <div className="product-info">
-                    <div className="product-name">{p.name}</div>
-                    <div className="product-price">{formatCurrency(p.price)}</div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {filtered.map(p => {
+                const inCart = store.cartItems.find(i => i.product_id === p.id);
+                return (
+                  <div 
+                    key={p.id} 
+                    className="product-list-item" 
+                    onClick={() => store.addItem({ product_id: p.id, name: p.name, price: p.price, quantity: 1, tax: p.tax, image_url: p.image_url, category_color: p.category_color })}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ width: 6, height: 24, borderRadius: 3, background: p.category_color || 'var(--brown-300)' }} />
+                      <div style={{ textAlign: 'left' }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{p.name}</div>
+                        {p.description && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{p.description}</div>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--brown-700)' }}>{formatCurrency(p.price)}</div>
+                      {inCart && (
+                        <div style={{
+                          background: 'var(--brown-500)',
+                          color: 'white',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: 700
+                        }}>{inCart.quantity}</div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-            {filtered.length === 0 && <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No products found</div>}
+                );
+              })}
+              {filtered.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No products found</div>}
+            </div>
           </div>
         )}
       </div>

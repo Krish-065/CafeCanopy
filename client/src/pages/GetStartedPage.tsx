@@ -18,12 +18,11 @@ export default function GetStartedPage() {
     toast.success('Signed out successfully');
   };
 
-  const handleRoleSelect = (roleName: 'admin' | 'employee' | 'kitchen' | 'customer') => {
+  const handleRoleSelect = (roleName: 'admin' | 'employee' | 'kitchen') => {
     const rolePathMap = {
       admin: '/admin/dashboard',
       employee: '/pos',
-      kitchen: '/kds',
-      customer: '/customer/dashboard'
+      kitchen: '/kds'
     };
 
     if (isAuthenticated && user) {
@@ -35,11 +34,7 @@ export default function GetStartedPage() {
         navigate(`/login?role=${roleName}`);
       }
     } else {
-      if (roleName === 'customer') {
-        navigate(`/register?role=${roleName}`);
-      } else {
-        navigate(`/login?role=${roleName}`);
-      }
+      navigate(`/login?role=${roleName}`);
     }
   };
 
@@ -47,7 +42,6 @@ export default function GetStartedPage() {
     if (!user) return '/login';
     if (user.role === 'kitchen') return '/kds';
     if (user.role === 'employee') return '/pos';
-    if (user.role === 'customer') return '/customer/dashboard';
     return '/admin/dashboard';
   };
 
@@ -225,26 +219,6 @@ export default function GetStartedPage() {
             </p>
             <button className="btn btn-secondary btn-full" onClick={() => handleRoleSelect('kitchen')}>
               {isAuthenticated && user?.role === 'kitchen' ? 'Go to Kitchen Display' : 'Launch KDS'}
-            </button>
-          </div>
-
-          {/* Customer Loyalty Card */}
-          <div className="stat-card" style={{
-            flexDirection: 'column',
-            padding: 32,
-            background: 'var(--bg-card)',
-            borderRadius: 20,
-            border: '1px solid rgba(220, 201, 174, 0.4)',
-            boxShadow: 'var(--shadow-md)',
-            alignItems: 'stretch'
-          }}>
-            <div style={{ display: 'flex', marginBottom: 16 }}><Users size={36} style={{ color: 'var(--brown-600)' }} /></div>
-            <h3 style={{ fontSize: 20, fontWeight: 700, color: 'var(--brown-800)', marginBottom: 10 }}>Customer Portal</h3>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 24, flex: 1 }}>
-              Check loyalty tiers, view accrued points balance, browse your transaction log, and see active promotion codes.
-            </p>
-            <button className="btn btn-outline btn-full" onClick={() => handleRoleSelect('customer')}>
-              {isAuthenticated && user?.role === 'customer' ? 'Go to Customer Portal' : 'Join Loyalty Club'}
             </button>
           </div>
         </div>

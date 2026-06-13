@@ -10,7 +10,6 @@ const NAV_ITEMS = [
   { path: '/admin/products', icon: ShoppingBag, label: 'Products' },
   { path: '/admin/categories', icon: Tag, label: 'Categories' },
   { path: '/admin/tables', icon: Grid, label: 'Tables' },
-  { path: '/admin/customers', icon: Users, label: 'Customers' },
   { path: '/admin/employees', icon: User, label: 'Employees' },
   { path: '/admin/payment-methods', icon: CreditCard, label: 'Payment Methods' },
   { path: '/admin/coupons', icon: Ticket, label: 'Coupons' },

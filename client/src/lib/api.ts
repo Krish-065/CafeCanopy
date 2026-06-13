@@ -91,7 +91,8 @@ export const employeesAPI = {
   create: (data: any) => api.post('/admin/employees', data),
   update: (id: string, data: any) => api.put(`/admin/employees/${id}`, data),
   resetPassword: (id: string, newPassword: string) => api.post(`/admin/employees/${id}/reset-password`, { newPassword }),
-  delete: (id: string) => api.delete(`/admin/employees/${id}`),
+  delete: (id: string, hard?: boolean) => api.delete(`/admin/employees/${id}${hard ? '?hard=true' : ''}`),
+  getHistory: (id: string) => api.get(`/admin/employees/${id}/history`),
 };
 
 export const customersAPI = {

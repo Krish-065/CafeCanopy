@@ -16,6 +16,8 @@ export default function EmployeesPage() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [resetId, setResetId] = useState('');
+  const [historyEmployee, setHistoryEmployee] = useState<any>(null);
+  const [history, setHistory] = useState<any[]>([]);
 
   const load = async () => {
     setLoading(true);
@@ -24,6 +26,16 @@ export default function EmployeesPage() {
       setEmployees(data.data); setTotal(data.pagination.total);
     } catch { toast.error('Failed to load employees'); }
     finally { setLoading(false); }
+  };
+
+  const loadHistory = async (e: any) => {
+    setHistoryEmployee(e);
+    try {
+      const { data } = await employeesAPI.getHistory(e.id);
+      setHistory(data.data);
+    } catch {
+      toast.error('Failed to load employee order history');
+    }
   };
 
   useEffect(() => { load(); }, [search]);
@@ -40,10 +52,16 @@ export default function EmployeesPage() {
     finally { setSaving(false); }
   };
 
+  const handleArchive = async (id: string) => {
+    if (!confirm('Are you sure you want to archive (deactivate) this employee?')) return;
+    try { await employeesAPI.delete(id, false); toast.success('Employee archived'); load(); }
+    catch { toast.error('Failed to archive employee'); }
+  };
+
   const handleDelete = async (id: string) => {
-    if (!confirm('Archive this employee?')) return;
-    try { await employeesAPI.delete(id); toast.success('Employee archived'); load(); }
-    catch { toast.error('Failed'); }
+    if (!confirm('Are you sure you want to PERMANENTLY delete this employee account? This will permanently delete their sessions and history logs, and cannot be undone.')) return;
+    try { await employeesAPI.delete(id, true); toast.success('Employee permanently deleted'); load(); }
+    catch { toast.error('Failed to delete employee'); }
   };
 
   const handleResetPassword = async () => {
@@ -65,8 +83,8 @@ export default function EmployeesPage() {
         <div className="search-bar" style={{ marginLeft: 'auto' }}><span className="search-icon">🔍</span><input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} /></div>
         <button className="btn btn-primary" onClick={() => { setEdit({ role: 'employee', active: true }); setShowModal(true); }}>＋ Add Employee</button>
       </div>
-      <div className="page-content">
-        <div className="card">
+      <div className="page-content" style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+        <div className="card" style={{ flex: 1, minWidth: 0 }}>
           <div className="table-wrapper">
             <table>
               <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Score</th><th>Level</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
@@ -106,7 +124,9 @@ export default function EmployeesPage() {
                       <div className="table-actions">
                         <button className="btn btn-outline btn-sm" onClick={() => { setEdit({ ...e }); setShowModal(true); }}>Edit</button>
                         <button className="btn btn-secondary btn-sm" onClick={() => { setResetId(e.id); setShowPasswordModal(true); }}>🔑 Reset</button>
-                        <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(e.id)} data-tooltip="Delete">
+                        <button className="btn btn-secondary btn-sm" onClick={() => loadHistory(e)}>📋 History</button>
+                        <button className="btn btn-outline btn-sm" onClick={() => handleArchive(e.id)} style={{ color: 'var(--text-muted)' }} title="Archive (Deactivate)">Archive</button>
+                        <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(e.id)} title="Delete Account Permanently">
                           <Trash2 size={16} />
                         </button>
                       </div>
@@ -118,6 +138,46 @@ export default function EmployeesPage() {
             </table>
           </div>
         </div>
+
+        {historyEmployee && (
+          <div className="card" style={{ width: 360, flexShrink: 0, position: 'sticky', top: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+              <h3 style={{ margin: 0 }}>📋 {historyEmployee.name}'s History</h3>
+              <button className="btn btn-ghost btn-sm" style={{ minWidth: 'auto', padding: '4px 8px' }} onClick={() => { setHistoryEmployee(null); setHistory([]); }}>✕</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--text-secondary)' }}>
+              <div>Email: <strong style={{ color: 'var(--text-main)' }}>{historyEmployee.email}</strong></div>
+              <div style={{ textTransform: 'capitalize' }}>Role: <strong style={{ color: 'var(--text-main)' }}>{historyEmployee.role}</strong></div>
+              {historyEmployee.role === 'employee' && (
+                <>
+                  <div>Total Processed: <strong style={{ color: 'var(--text-main)' }}>₹{Number(historyEmployee.score || 0).toLocaleString()}</strong></div>
+                  <div>Employee Level: <strong style={{ color: 'var(--text-main)' }}>{historyEmployee.performance_level || 'Bronze'}</strong></div>
+                </>
+              )}
+            </div>
+            <hr className="divider" style={{ margin: '12px 0' }} />
+            <h4 style={{ margin: '0 0 10px 0', fontSize: 14 }}>Orders Handled</h4>
+            <div style={{ maxHeight: 380, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {history.map(o => (
+                <div key={o.id} style={{ borderBottom: '1px solid var(--cream-200)', paddingBottom: 8, fontSize: 13 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                    <span style={{ color: 'var(--brown-600)' }}>{o.order_number}</span>
+                    <span>₹{Number(o.total || 0).toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    <span>Customer: {o.customer_name || 'Walk-in'}</span>
+                    <span>{new Date(o.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, fontStyle: 'italic' }}>
+                    {o.items?.slice(0, 2).map((i: any) => `${i.name} x${i.quantity}`).join(', ')}
+                    {o.items?.length > 2 ? ` +${o.items.length - 2} more` : ''}
+                  </div>
+                </div>
+              ))}
+              {!history.length && <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 12 }}>No order history found</div>}
+            </div>
+          </div>
+        )}
       </div>
 
       {showModal && edit && (

@@ -89,8 +89,13 @@ export const updateProduct = async (req: Request, res: Response) => {
 export const deleteProduct = async (req: Request, res: Response) => {
   try {
     await query(`DELETE FROM products WHERE id = $1`, [req.params.id]);
-    return res.json({ success: true, message: 'Product deleted' });
-  } catch (error) {
+    return res.json({ success: true, message: 'Product deleted successfully' });
+  } catch (error: any) {
+    if (error.code === '23503') {
+      // Product has order history; soft-delete (archive) instead
+      await query(`UPDATE products SET active = false WHERE id = $1`, [req.params.id]);
+      return res.json({ success: true, message: 'Product is linked to order history and has been archived instead.' });
+    }
     return res.status(500).json({ success: false, message: 'Failed to delete product' });
   }
 };
@@ -98,8 +103,17 @@ export const deleteProduct = async (req: Request, res: Response) => {
 export const bulkDeleteProducts = async (req: Request, res: Response) => {
   try {
     const { ids } = req.body;
-    await query(`DELETE FROM products WHERE id = ANY($1)`, [ids]);
-    return res.json({ success: true, message: `${ids.length} products deleted` });
+    try {
+      await query(`DELETE FROM products WHERE id = ANY($1)`, [ids]);
+      return res.json({ success: true, message: `${ids.length} products deleted` });
+    } catch (error: any) {
+      if (error.code === '23503') {
+        // Soft delete (archive) all instead
+        await query(`UPDATE products SET active = false WHERE id = ANY($1)`, [ids]);
+        return res.json({ success: true, message: 'Products are linked to order history and have been archived instead.' });
+      }
+      throw error;
+    }
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Bulk delete failed' });
   }
@@ -356,10 +370,36 @@ export const resetEmployeePassword = async (req: Request, res: Response) => {
 
 export const deleteEmployee = async (req: Request, res: Response) => {
   try {
-    // Soft delete: just deactivate
-    await query(`UPDATE users SET active = false WHERE id = $1`, [req.params.id]);
-    return res.json({ success: true, message: 'Employee archived' });
+    const { hard } = req.query;
+    if (hard === 'true') {
+      // Hard delete: delete sessions and orders if any, or set them to a system user?
+      // Since it's a POS, if they want to delete, they might want to purge everything.
+      // Let's cascade delete refresh_tokens, sessions, and orders.
+      // First, delete order_items related to orders by this employee
+      await query(`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE employee_id = $1)`, [req.params.id]);
+      // Delete payments related to orders by this employee
+      await query(`DELETE FROM payments WHERE order_id IN (SELECT id FROM orders WHERE employee_id = $1)`, [req.params.id]);
+      // Delete kitchen_tickets related to orders by this employee
+      await query(`DELETE FROM kitchen_tickets WHERE order_id IN (SELECT id FROM orders WHERE employee_id = $1)`, [req.params.id]);
+      // Delete orders
+      await query(`DELETE FROM orders WHERE employee_id = $1`, [req.params.id]);
+      // Delete sessions opened by this employee
+      await query(`DELETE FROM sessions WHERE opened_by = $1`, [req.params.id]);
+      // Delete refresh tokens
+      await query(`DELETE FROM refresh_tokens WHERE user_id = $1`, [req.params.id]);
+      // Delete customer user association if any
+      await query(`UPDATE customers SET user_id = NULL WHERE user_id = $1`, [req.params.id]);
+      // Finally, delete the user
+      const result = await query(`DELETE FROM users WHERE id = $1 RETURNING *`, [req.params.id]);
+      if (!result.rows[0]) return res.status(404).json({ success: false, message: 'Employee not found' });
+      return res.json({ success: true, message: 'Employee permanently deleted' });
+    } else {
+      // Soft delete: just deactivate
+      await query(`UPDATE users SET active = false WHERE id = $1`, [req.params.id]);
+      return res.json({ success: true, message: 'Employee archived' });
+    }
   } catch (error) {
+    console.error('[DELETE_EMPLOYEE]', error);
     return res.status(500).json({ success: false, message: 'Failed to delete employee' });
   }
 };
@@ -449,6 +489,23 @@ export const getCustomerHistory = async (req: Request, res: Response) => {
   }
 };
 
+export const getEmployeeHistory = async (req: Request, res: Response) => {
+  try {
+    const result = await query(
+      `SELECT o.*, c.name as customer_name,
+        json_agg(json_build_object('name', p.name, 'quantity', oi.quantity, 'price', oi.price)) as items
+       FROM orders o LEFT JOIN customers c ON o.customer_id = c.id
+       LEFT JOIN order_items oi ON oi.order_id = o.id
+       LEFT JOIN products p ON oi.product_id = p.id
+       WHERE o.employee_id = $1 GROUP BY o.id, c.name ORDER BY o.created_at DESC LIMIT 20`,
+      [req.params.id]
+    );
+    return res.json({ success: true, data: result.rows });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Failed to fetch employee history' });
+  }
+};
+
 // ─── Payment Methods ─────────────────────────────────────────────────────────
 export const getPaymentMethods = async (req: Request, res: Response) => {
   try {
@@ -458,7 +515,16 @@ export const getPaymentMethods = async (req: Request, res: Response) => {
     if (active !== undefined) { sql += ` WHERE active = $1`; params.push(active === 'true'); }
     sql += ` ORDER BY sort_order, name`;
     const result = await query(sql, params);
-    return res.json({ success: true, data: result.rows });
+    
+    // Inject DEFAULT_UPI_ID from env if database value is missing/empty
+    const rows = result.rows.map(row => {
+      if (row.type === 'upi' && !row.upi_id && process.env.DEFAULT_UPI_ID) {
+        return { ...row, upi_id: process.env.DEFAULT_UPI_ID };
+      }
+      return row;
+    });
+
+    return res.json({ success: true, data: rows });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Failed to fetch payment methods' });
   }

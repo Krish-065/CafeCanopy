@@ -23,7 +23,7 @@ const generateTokens = (user: { id: string; email: string; role: string; name: s
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { name, email, password, role = 'customer' } = req.body;
+    const { name, email, password, role = 'employee' } = req.body;
 
     // Check duplicate email
     const exists = await query('SELECT id FROM users WHERE email = $1', [email]);
@@ -37,18 +37,6 @@ export const register = async (req: Request, res: Response) => {
       [name, email, hashed, role]
     );
     const user = userResult.rows[0];
-
-    // If customer role, create customer record
-    if (role === 'customer') {
-      const custResult = await query(
-        `INSERT INTO customers (user_id, name, email) VALUES ($1, $2, $3) RETURNING id`,
-        [user.id, name, email]
-      );
-      await query(
-        `INSERT INTO loyalty_accounts (customer_id, points, tier) VALUES ($1, 0, 'bronze')`,
-        [custResult.rows[0].id]
-      );
-    }
 
     const { accessToken, refreshToken } = generateTokens(user);
 

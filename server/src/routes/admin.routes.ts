@@ -42,6 +42,7 @@ router.post('/employees', adminOnly, admin.createEmployee);
 router.put('/employees/:id', adminOnly, admin.updateEmployee);
 router.post('/employees/:id/reset-password', adminOnly, admin.resetEmployeePassword);
 router.delete('/employees/:id', adminOnly, admin.deleteEmployee);
+router.get('/employees/:id/history', adminOnly, admin.getEmployeeHistory);
 
 // Customers
 router.get('/customers', adminOrEmployee, admin.getCustomers);

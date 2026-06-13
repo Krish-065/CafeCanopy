@@ -12,7 +12,6 @@ dotenv.config();
 import authRoutes from './routes/auth.routes';
 import adminRoutes from './routes/admin.routes';
 import posRoutes from './routes/pos.routes';
-import customerRoutes from './routes/customer.routes';
 import { initSocket } from './socket';
 import { setSocketServer } from './controllers/pos.controller';
 
@@ -49,7 +48,6 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/pos', posRoutes);
-app.use('/api/customer', customerRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

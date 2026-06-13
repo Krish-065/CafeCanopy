@@ -1,14 +1,33 @@
 -- CafeCanopy Restaurant POS - Complete Database Schema
 
 -- Extensions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- Snowflake ID Sequence and Generator Function
+CREATE SEQUENCE IF NOT EXISTS snowflake_id_seq;
+
+CREATE OR REPLACE FUNCTION next_snowflake_id() RETURNS bigint AS $$
+DECLARE
+    our_epoch bigint := 1770000000000; -- custom epoch in milliseconds (e.g. 2026)
+    seq_id bigint;
+    now_millis bigint;
+    worker_id bigint := 1; -- default node/worker ID
+    result bigint;
+BEGIN
+    SELECT nextval('snowflake_id_seq') % 4096 INTO seq_id;
+    SELECT FLOOR(EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint INTO now_millis;
+    result := (now_millis - our_epoch) << 22;
+    result := result | (worker_id << 12);
+    result := result | seq_id;
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql;
 
 -- ═══════════════════════════════════════════════════════════
 -- USERS & AUTH
 -- ═══════════════════════════════════════════════════════════
 CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
   name VARCHAR(100) NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
@@ -21,8 +40,8 @@ CREATE TABLE users (
 );
 
 CREATE TABLE refresh_tokens (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   token TEXT NOT NULL UNIQUE,
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -32,8 +51,8 @@ CREATE TABLE refresh_tokens (
 -- CUSTOMERS
 -- ═══════════════════════════════════════════════════════════
 CREATE TABLE customers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
+  user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
   name VARCHAR(100) NOT NULL,
   email VARCHAR(255),
   phone VARCHAR(20),
@@ -42,8 +61,8 @@ CREATE TABLE customers (
 );
 
 CREATE TABLE loyalty_accounts (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
+  customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   points INTEGER DEFAULT 0,
   tier VARCHAR(20) DEFAULT 'bronze' CHECK (tier IN ('bronze', 'silver', 'gold', 'platinum')),
   lifetime_points INTEGER DEFAULT 0,
@@ -52,12 +71,12 @@ CREATE TABLE loyalty_accounts (
 );
 
 CREATE TABLE loyalty_transactions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
+  customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   points INTEGER NOT NULL,
   type VARCHAR(20) NOT NULL CHECK (type IN ('earn', 'redeem', 'expire', 'bonus')),
   description TEXT,
-  order_id UUID,
+  order_id BIGINT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -65,7 +84,7 @@ CREATE TABLE loyalty_transactions (
 -- PRODUCTS & CATEGORIES
 -- ═══════════════════════════════════════════════════════════
 CREATE TABLE categories (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
   name VARCHAR(100) NOT NULL,
   color VARCHAR(7) DEFAULT '#C8A97A',
   sort_order INTEGER DEFAULT 0,
@@ -74,9 +93,9 @@ CREATE TABLE categories (
 );
 
 CREATE TABLE products (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
   name VARCHAR(200) NOT NULL,
-  category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
+  category_id BIGINT REFERENCES categories(id) ON DELETE SET NULL,
   price DECIMAL(10,2) NOT NULL,
   tax DECIMAL(5,2) DEFAULT 0,
   description TEXT,
@@ -93,7 +112,7 @@ CREATE TABLE products (
 -- FLOORS & TABLES
 -- ═══════════════════════════════════════════════════════════
 CREATE TABLE floors (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
   name VARCHAR(100) NOT NULL,
   sort_order INTEGER DEFAULT 0,
   active BOOLEAN DEFAULT true,
@@ -101,8 +120,8 @@ CREATE TABLE floors (
 );
 
 CREATE TABLE tables (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  floor_id UUID NOT NULL REFERENCES floors(id) ON DELETE CASCADE,
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
+  floor_id BIGINT NOT NULL REFERENCES floors(id) ON DELETE CASCADE,
   table_number VARCHAR(20) NOT NULL,
   seats INTEGER DEFAULT 4,
   shape VARCHAR(20) DEFAULT 'square' CHECK (shape IN ('square', 'round', 'rectangle')),
@@ -117,7 +136,7 @@ CREATE TABLE tables (
 -- PAYMENT METHODS
 -- ═══════════════════════════════════════════════════════════
 CREATE TABLE payment_methods (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
   name VARCHAR(100) NOT NULL,
   type VARCHAR(20) NOT NULL CHECK (type IN ('cash', 'card', 'upi', 'wallet')),
   upi_id VARCHAR(100),
@@ -130,7 +149,7 @@ CREATE TABLE payment_methods (
 -- COUPONS
 -- ═══════════════════════════════════════════════════════════
 CREATE TABLE coupons (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
   name VARCHAR(100) NOT NULL,
   code VARCHAR(50) UNIQUE NOT NULL,
   discount_type VARCHAR(20) NOT NULL CHECK (discount_type IN ('percentage', 'fixed')),
@@ -149,12 +168,12 @@ CREATE TABLE coupons (
 -- PROMOTIONS
 -- ═══════════════════════════════════════════════════════════
 CREATE TABLE promotions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
   name VARCHAR(200) NOT NULL,
   promotion_type VARCHAR(20) NOT NULL CHECK (promotion_type IN ('product', 'order')),
   apply_on VARCHAR(20) CHECK (apply_on IN ('product', 'order', 'category')),
-  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
-  category_id UUID REFERENCES categories(id) ON DELETE CASCADE,
+  product_id BIGINT REFERENCES products(id) ON DELETE CASCADE,
+  category_id BIGINT REFERENCES categories(id) ON DELETE CASCADE,
   minimum_quantity INTEGER DEFAULT 1,
   minimum_amount DECIMAL(10,2) DEFAULT 0,
   discount_type VARCHAR(20) NOT NULL CHECK (discount_type IN ('percentage', 'fixed')),
@@ -169,8 +188,8 @@ CREATE TABLE promotions (
 -- POS SESSIONS
 -- ═══════════════════════════════════════════════════════════
 CREATE TABLE sessions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  opened_by UUID NOT NULL REFERENCES users(id),
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
+  opened_by BIGINT NOT NULL REFERENCES users(id),
   opened_at TIMESTAMPTZ DEFAULT NOW(),
   closed_at TIMESTAMPTZ,
   opening_amount DECIMAL(10,2) DEFAULT 0,
@@ -185,19 +204,19 @@ CREATE TABLE sessions (
 -- ORDERS
 -- ═══════════════════════════════════════════════════════════
 CREATE TABLE orders (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
   order_number VARCHAR(20) UNIQUE NOT NULL,
-  table_id UUID REFERENCES tables(id) ON DELETE SET NULL,
-  customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
-  employee_id UUID NOT NULL REFERENCES users(id),
-  session_id UUID REFERENCES sessions(id) ON DELETE SET NULL,
+  table_id BIGINT REFERENCES tables(id) ON DELETE SET NULL,
+  customer_id BIGINT REFERENCES customers(id) ON DELETE SET NULL,
+  employee_id BIGINT NOT NULL REFERENCES users(id),
+  session_id BIGINT REFERENCES sessions(id) ON DELETE SET NULL,
   status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'sent_to_kitchen', 'preparing', 'ready', 'paid', 'cancelled', 'refunded')),
   subtotal DECIMAL(10,2) DEFAULT 0,
   tax_amount DECIMAL(10,2) DEFAULT 0,
   discount_amount DECIMAL(10,2) DEFAULT 0,
   total DECIMAL(10,2) DEFAULT 0,
   notes TEXT,
-  coupon_id UUID REFERENCES coupons(id) ON DELETE SET NULL,
+  coupon_id BIGINT REFERENCES coupons(id) ON DELETE SET NULL,
   coupon_discount DECIMAL(10,2) DEFAULT 0,
   promotion_discount DECIMAL(10,2) DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -205,9 +224,9 @@ CREATE TABLE orders (
 );
 
 CREATE TABLE order_items (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  product_id UUID NOT NULL REFERENCES products(id),
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
+  order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  product_id BIGINT NOT NULL REFERENCES products(id),
   quantity INTEGER NOT NULL DEFAULT 1,
   price DECIMAL(10,2) NOT NULL,
   tax DECIMAL(5,2) DEFAULT 0,
@@ -219,9 +238,9 @@ CREATE TABLE order_items (
 );
 
 CREATE TABLE payments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  payment_method_id UUID NOT NULL REFERENCES payment_methods(id),
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
+  order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  payment_method_id BIGINT NOT NULL REFERENCES payment_methods(id),
   amount DECIMAL(10,2) NOT NULL,
   amount_received DECIMAL(10,2),
   change_due DECIMAL(10,2) DEFAULT 0,
@@ -234,8 +253,8 @@ CREATE TABLE payments (
 -- KITCHEN DISPLAY
 -- ═══════════════════════════════════════════════════════════
 CREATE TABLE kitchen_tickets (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
+  order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   stage VARCHAR(20) DEFAULT 'to_cook' CHECK (stage IN ('to_cook', 'preparing', 'completed')),
   priority INTEGER DEFAULT 0,
   notes TEXT,
@@ -249,7 +268,7 @@ CREATE TABLE kitchen_tickets (
 -- SYSTEM SETTINGS
 -- ═══════════════════════════════════════════════════════════
 CREATE TABLE settings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
   key VARCHAR(100) UNIQUE NOT NULL,
   value TEXT,
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -259,11 +278,11 @@ CREATE TABLE settings (
 -- AUDIT LOGS
 -- ═══════════════════════════════════════════════════════════
 CREATE TABLE audit_logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
+  user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
   action VARCHAR(100) NOT NULL,
   entity_type VARCHAR(50),
-  entity_id UUID,
+  entity_id BIGINT,
   old_values JSONB,
   new_values JSONB,
   ip_address VARCHAR(45),
@@ -275,9 +294,9 @@ CREATE TABLE audit_logs (
 -- BOOKINGS (Customer Portal)
 -- ═══════════════════════════════════════════════════════════
 CREATE TABLE bookings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-  table_id UUID REFERENCES tables(id) ON DELETE SET NULL,
+  id BIGINT PRIMARY KEY DEFAULT next_snowflake_id(),
+  customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  table_id BIGINT REFERENCES tables(id) ON DELETE SET NULL,
   booking_date DATE NOT NULL,
   booking_time TIME NOT NULL,
   guests INTEGER DEFAULT 2,
@@ -335,7 +354,6 @@ INSERT INTO settings (key, value) VALUES
 -- Default Admin user (password: Admin@123)
 INSERT INTO users (name, email, password, role, active) VALUES
   ('Admin', 'admin@cafecanopy.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewFgpRLfnQJKhPRu', 'admin', true);
--- Note: password hash above is for "Admin@123" - change immediately in production
 
 -- Default floor and tables
 INSERT INTO floors (name, sort_order) VALUES ('Ground Floor', 1), ('First Floor', 2);

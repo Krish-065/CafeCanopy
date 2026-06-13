@@ -56,4 +56,3 @@ export const authorize = (...roles: string[]) => {
 export const adminOnly = authorize('admin');
 export const adminOrEmployee = authorize('admin', 'employee');
 export const kitchenOrAdmin = authorize('admin', 'kitchen');
-export const customerOrAdmin = authorize('admin', 'customer');

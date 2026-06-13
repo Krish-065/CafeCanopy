@@ -239,8 +239,9 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     if (!items?.length) return res.status(400).json({ success: false, message: 'Order must have at least one item' });
 
     // Generate order number
-    const count = await query(`SELECT COUNT(*) FROM orders WHERE DATE(created_at) = CURRENT_DATE`);
-    const orderNumber = `CC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Number(count.rows[0].count) + 1).padStart(4, '0')}`;
+    const datePrefix = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const count = await query(`SELECT COUNT(*) FROM orders WHERE order_number LIKE $1`, [`CC-${datePrefix}-%`]);
+    const orderNumber = `CC-${datePrefix}-${String(Number(count.rows[0].count) + 1).padStart(4, '0')}`;
 
     // Fetch product prices
     const productIds = items.map((i: any) => i.product_id);
@@ -294,7 +295,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       `INSERT INTO orders (order_number, table_id, customer_id, employee_id, session_id,
         status, subtotal, tax_amount, discount_amount, total, coupon_id, coupon_discount,
         promotion_discount, notes)
-       VALUES ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+       VALUES ($1,$2,$3,$4,$5,'sent_to_kitchen',$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
       [orderNumber, table_id, customer_id, req.user!.id, session_id,
         subtotal, taxAmount, totalDiscount, total, couponId, couponDiscount, promotionDiscount, notes]
     );
@@ -309,17 +310,34 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       );
     }
 
+    // Create kitchen ticket
+    await query(`INSERT INTO kitchen_tickets (order_id, stage) VALUES ($1, 'to_cook')`, [order.id]);
+
     // Update table status if table assigned
     if (table_id) {
       await query(`UPDATE tables SET status = 'occupied' WHERE id = $1`, [table_id]);
       io?.emit('table:status_changed', { table_id, status: 'occupied' });
     }
 
+    // Emit order created notification
     io?.emit('order:created', { order_id: order.id, order_number: orderNumber });
+
+    // Emit kitchen update with full order details
+    const kitchenOrder = await query(
+      `SELECT o.*, t.table_number, c.name as customer_name,
+        json_agg(json_build_object('id', oi.id, 'product_id', oi.product_id, 'name', p.name,
+          'quantity', oi.quantity, 'notes', oi.notes, 'kitchen_status', oi.kitchen_status)) as items
+       FROM orders o LEFT JOIN tables t ON o.table_id = t.id
+       LEFT JOIN customers c ON o.customer_id = c.id
+       JOIN order_items oi ON oi.order_id = o.id JOIN products p ON oi.product_id = p.id
+       WHERE o.id = $1 AND p.kitchen_enabled = true GROUP BY o.id, t.table_number, c.name`,
+      [order.id]
+    );
+    io?.emit('kitchen:new_ticket', kitchenOrder.rows[0]);
 
     return res.status(201).json({
       success: true, data: { ...order, items: processedItems, applied_promotions: appliedPromotions },
-      message: 'Order created'
+      message: 'Order created and sent to kitchen'
     });
   } catch (error: any) {
     console.error('[ORDER] Create error:', error);
@@ -719,8 +737,9 @@ export const createCustomerOrder = async (req: AuthRequest, res: Response) => {
     const customerId = customerResult.rows[0]?.id || null;
 
     // Generate order number
-    const count = await query(`SELECT COUNT(*) FROM orders WHERE DATE(created_at) = CURRENT_DATE`);
-    const orderNumber = `C-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Number(count.rows[0].count) + 1).padStart(4, '0')}`;
+    const datePrefix = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const count = await query(`SELECT COUNT(*) FROM orders WHERE order_number LIKE $1`, [`C-${datePrefix}-%`]);
+    const orderNumber = `C-${datePrefix}-${String(Number(count.rows[0].count) + 1).padStart(4, '0')}`;
 
     // Fetch product prices
     const productIds = items.map((i: any) => i.product_id);

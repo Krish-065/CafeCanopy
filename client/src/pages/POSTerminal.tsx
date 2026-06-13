@@ -545,8 +545,8 @@ export default function POSTerminal() {
                       setShowTableModal(false);
                       
                       try {
-                        const { data } = await ordersAPI.getAll({ table_id: t.id, status: 'draft' });
-                        const activeOrder = data.data?.[0];
+                        const { data } = await ordersAPI.getAll({ table_id: t.id });
+                        const activeOrder = data.data?.find((o: any) => o.status !== 'paid' && o.status !== 'cancelled');
                         if (activeOrder) {
                           const detailRes = await ordersAPI.getOne(activeOrder.id);
                           const orderDetails = detailRes.data.data;

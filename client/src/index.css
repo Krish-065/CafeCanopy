@@ -74,6 +74,13 @@
   --transition-slow:   400ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Hide default cursor on desktops */
+@media (pointer: fine) {
+  body, a, button, input, select, textarea, [role="button"], .category-tab, .product-list-item, .table-tile, .qty-btn, .cart-item-delete {
+    cursor: none !important;
+  }
+}
+
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 16px; -webkit-font-smoothing: antialiased; }
@@ -85,7 +92,7 @@ body {
   min-height: 100vh;
 }
 img { max-width: 100%; display: block; }
-button { font-family: inherit; cursor: pointer; }
+button { font-family: inherit; }
 input, textarea, select { font-family: inherit; }
 a { text-decoration: none; color: inherit; }
 
@@ -1556,3 +1563,91 @@ tr:hover td { background: var(--cream-100); }
 .react-hot-toast-bar {
   font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
+
+/* ══════════════════════════════════════════════════════════
+   PREMIUM CUSTOM LOOK AND FEEL OVERRIDES
+   ══════════════════════════════════════════════════════════ */
+
+/* Glassmorphism effects */
+.topbar, .modal-header, .payment-header, .cart-header {
+  backdrop-filter: blur(16px) saturate(120%);
+  background: rgba(255, 255, 255, 0.8) !important;
+}
+
+.pos-topbar {
+  backdrop-filter: blur(16px) saturate(120%);
+  background: rgba(45, 31, 18, 0.85) !important;
+}
+
+/* Button & interactive states micro-animations */
+.btn {
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+.btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 20px rgba(138, 99, 64, 0.15);
+}
+.btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 8px 24px rgba(160, 120, 74, 0.3);
+}
+
+.btn-danger:hover {
+  box-shadow: 0 8px 24px rgba(217, 79, 79, 0.25);
+}
+
+/* Sidebar nav item enhancements */
+.nav-item {
+  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+  border-radius: var(--radius-md) !important;
+  margin: 4px 12px !important;
+}
+.nav-item:hover {
+  transform: translateX(4px);
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: var(--cream-50) !important;
+}
+.nav-item.active {
+  transform: translateX(4px);
+  background: rgba(200, 169, 122, 0.22) !important;
+}
+.nav-item.active::before {
+  display: none; /* Disable old indicator in favor of rounded premium item style */
+}
+
+/* Card glows & interactive tiles */
+.card, .stat-card, .product-list-item, .table-tile {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+}
+
+.product-list-item:hover {
+  border-color: var(--brown-400) !important;
+  background: var(--cream-50) !important;
+  transform: scale(1.01) translateX(2px);
+  box-shadow: 0 6px 16px rgba(45, 31, 18, 0.05);
+}
+
+.table-tile:hover {
+  transform: translateY(-4px) scale(1.03);
+  box-shadow: 0 10px 24px rgba(45, 31, 18, 0.1);
+}
+
+/* Beautiful dynamic item entry list animation */
+.product-list-item {
+  animation: itemEntry 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes itemEntry {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+

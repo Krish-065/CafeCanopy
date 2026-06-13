@@ -57,9 +57,96 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const CustomCursor = () => {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [hidden, setHidden] = useState(true);
+  const [clicked, setClicked] = useState(false);
+  const [linkHovered, setLinkHovered] = useState(false);
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      setPosition({ x: e.clientX, y: e.clientY });
+      setHidden(false);
+    };
+    const onMouseEnter = () => setHidden(false);
+    const onMouseLeave = () => setHidden(true);
+    const onMouseDown = () => setClicked(true);
+    const onMouseUp = () => setClicked(false);
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseenter", onMouseEnter);
+    document.addEventListener("mouseleave", onMouseLeave);
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("mouseup", onMouseUp);
+
+    const handleLinkHoverEvents = () => {
+      const hoverables = document.querySelectorAll(
+        'a, button, [role="button"], input, select, textarea, .category-tab, .product-list-item, .table-tile, .qty-btn, .cart-item-delete'
+      );
+      hoverables.forEach((el) => {
+        el.addEventListener("mouseover", () => setLinkHovered(true));
+        el.addEventListener("mouseout", () => setLinkHovered(false));
+      });
+    };
+
+    const observer = new MutationObserver(handleLinkHoverEvents);
+    observer.observe(document.body, { childList: true, subtree: true });
+    handleLinkHoverEvents();
+
+    return () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseenter", onMouseEnter);
+      document.removeEventListener("mouseleave", onMouseLeave);
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("mouseup", onMouseUp);
+      observer.disconnect();
+    };
+  }, []);
+
+  if (hidden) return null;
+
+  return (
+    <>
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          background: 'var(--brown-600)',
+          pointerEvents: 'none',
+          zIndex: 9999,
+          transform: `translate3d(${position.x - 4}px, ${position.y - 4}px, 0) scale(${clicked ? 0.8 : 1})`,
+          transition: 'transform 0.05s ease-out',
+        }}
+      />
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: 32,
+          height: 32,
+          borderRadius: '50%',
+          border: '1.5px solid var(--brown-400)',
+          pointerEvents: 'none',
+          zIndex: 9998,
+          transform: `translate3d(${position.x - 16}px, ${position.y - 16}px, 0) scale(${linkHovered ? 1.5 : clicked ? 0.9 : 1})`,
+          background: linkHovered ? 'rgba(184, 149, 95, 0.1)' : 'transparent',
+          transition: 'transform 0.15s ease-out, background-color 0.15s ease-out',
+        }}
+      />
+    </>
+  );
+};
+
 export default function App() {
   return (
-    <BrowserRouter>
+    <>
+      <CustomCursor />
+      <BrowserRouter>
       <Toaster
         position="top-right"
         toastOptions={{
@@ -111,5 +198,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </>
   );
 }

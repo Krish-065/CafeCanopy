@@ -83,7 +83,7 @@ export default function EmployeesPage() {
         <div className="search-bar" style={{ marginLeft: 'auto' }}><span className="search-icon">🔍</span><input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} /></div>
         <button className="btn btn-primary" onClick={() => { setEdit({ role: 'employee', active: true }); setShowModal(true); }}>＋ Add Employee</button>
       </div>
-      <div className="page-content" style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+      <div className="page-content" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div className="card" style={{ flex: 1, minWidth: 0 }}>
           <div className="table-wrapper">
             <table>
@@ -140,41 +140,84 @@ export default function EmployeesPage() {
         </div>
 
         {historyEmployee && (
-          <div className="card" style={{ width: 360, flexShrink: 0, position: 'sticky', top: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
-              <h3 style={{ margin: 0 }}>📋 {historyEmployee.name}'s History</h3>
-              <button className="btn btn-ghost btn-sm" style={{ minWidth: 'auto', padding: '4px 8px' }} onClick={() => { setHistoryEmployee(null); setHistory([]); }}>✕</button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--text-secondary)' }}>
-              <div>Email: <strong style={{ color: 'var(--text-main)' }}>{historyEmployee.email}</strong></div>
-              <div style={{ textTransform: 'capitalize' }}>Role: <strong style={{ color: 'var(--text-main)' }}>{historyEmployee.role}</strong></div>
-              {historyEmployee.role === 'employee' && (
-                <>
-                  <div>Total Processed: <strong style={{ color: 'var(--text-main)' }}>₹{Number(historyEmployee.score || 0).toLocaleString()}</strong></div>
-                  <div>Employee Level: <strong style={{ color: 'var(--text-main)' }}>{historyEmployee.performance_level || 'Bronze'}</strong></div>
-                </>
-              )}
-            </div>
-            <hr className="divider" style={{ margin: '12px 0' }} />
-            <h4 style={{ margin: '0 0 10px 0', fontSize: 14 }}>Orders Handled</h4>
-            <div style={{ maxHeight: 380, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {history.map(o => (
-                <div key={o.id} style={{ borderBottom: '1px solid var(--cream-200)', paddingBottom: 8, fontSize: 13 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
-                    <span style={{ color: 'var(--brown-600)' }}>{o.order_number}</span>
-                    <span>₹{Number(o.total || 0).toLocaleString()}</span>
+          <div className="card" style={{ transition: 'all 0.3s ease' }}>
+            <div style={{ padding: '24px 24px 12px 24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brown-400), var(--brown-600))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 18, boxShadow: 'var(--shadow-sm)' }}>
+                    {historyEmployee.name[0]?.toUpperCase()}
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    <span>Customer: {o.customer_name || 'Walk-in'}</span>
-                    <span>{new Date(o.created_at).toLocaleDateString()}</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, fontStyle: 'italic' }}>
-                    {o.items?.slice(0, 2).map((i: any) => `${i.name} x${i.quantity}`).join(', ')}
-                    {o.items?.length > 2 ? ` +${o.items.length - 2} more` : ''}
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>{historyEmployee.name}</h3>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{historyEmployee.email}</div>
                   </div>
                 </div>
-              ))}
-              {!history.length && <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 12 }}>No order history found</div>}
+                <button className="btn btn-ghost btn-sm" style={{ width: 32, height: 32, padding: 0, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }} onClick={() => { setHistoryEmployee(null); setHistory([]); }}>✕</button>
+              </div>
+
+              {/* Mini Stats Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 24 }}>
+                <div style={{ background: 'var(--cream-50)', border: '1px solid var(--border)', padding: '12px 16px', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Role</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4, textTransform: 'capitalize' }}>
+                    <span className={`badge ${ROLE_COLORS[historyEmployee.role] || 'badge-gray'}`}>{historyEmployee.role}</span>
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--cream-50)', border: '1px solid var(--border)', padding: '12px 16px', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Total Processed</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--brown-700)', marginTop: 4 }}>
+                    ₹{Number(historyEmployee.score || 0).toLocaleString()}
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--cream-50)', border: '1px solid var(--border)', padding: '12px 16px', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Performance Level</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {historyEmployee.role === 'employee' ? (
+                      <>
+                        {historyEmployee.performance_level === 'Platinum' && <Trophy size={14} style={{ color: '#E5E4E2' }} />}
+                        {historyEmployee.performance_level === 'Gold' && <Trophy size={14} style={{ color: '#FFD700' }} />}
+                        {historyEmployee.performance_level === 'Silver' && <Award size={14} style={{ color: '#C0C0C0' }} />}
+                        {historyEmployee.performance_level === 'Bronze' && <Award size={14} style={{ color: '#CD7F32' }} />}
+                        <span className={`badge ${LEVEL_COLORS[historyEmployee.performance_level] || 'badge-gray'}`}>
+                          {historyEmployee.performance_level || 'Bronze'}
+                        </span>
+                      </>
+                    ) : '—'}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 18, paddingBottom: 12 }}>
+                <h4 style={{ margin: '0 0 14px 0', fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>📋 Orders Handled</span>
+                  <span className="badge badge-brown" style={{ fontSize: 11, padding: '2px 6px' }}>{history.length}</span>
+                </h4>
+
+                <div style={{ maxHeight: 380, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4 }}>
+                  {history.map(o => (
+                    <div key={o.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 12, transition: 'all var(--transition-fast)' }} className="history-order-item">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontWeight: 700, color: 'var(--brown-700)', fontSize: 14 }}>{o.order_number}</span>
+                        <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 14 }}>₹{Number(o.total || 0).toLocaleString()}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+                        <span>Customer: <strong style={{ color: 'var(--text-secondary)' }}>{o.customer_name || 'Walk-in'}</strong></span>
+                        <span>{new Date(o.created_at).toLocaleDateString()}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--cream-50)', padding: '6px 10px', borderRadius: 6, borderLeft: '3.5px solid var(--brown-300)' }}>
+                        {o.items?.map((i: any) => `${i.name} x${i.quantity}`).join(', ')}
+                      </div>
+                    </div>
+                  ))}
+                  {!history.length && (
+                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px 12px', background: 'var(--cream-50)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)' }}>
+                      No order history found
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}

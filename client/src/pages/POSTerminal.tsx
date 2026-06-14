@@ -61,6 +61,7 @@ export default function POSTerminal() {
   // Orders list
   const [showOrders, setShowOrders] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
+  const [orderStatus, setOrderStatus] = useState<string>('draft');
 
   // Load initial data
   useEffect(() => {
@@ -106,13 +107,35 @@ export default function POSTerminal() {
     const handleRefresh = () => {
       loadProducts();
     };
+    const handleKitchenUpdate = (data: { ticket_id: string, stage: string, order_id: string }) => {
+      const currentOrderId = usePOSStore.getState().currentOrderId;
+      const selectedTable = usePOSStore.getState().selectedTable;
+      if (currentOrderId && String(data.order_id) === String(currentOrderId)) {
+        if (data.stage === 'preparing') {
+          setOrderStatus('preparing');
+          toast.loading(`Order is now being prepared in the kitchen 🍳`, { id: 'kitchen-status' });
+        } else if (data.stage === 'completed') {
+          setOrderStatus('ready');
+          toast.dismiss('kitchen-status');
+          toast.success(`🎉 Active order (Table ${selectedTable?.table_number || ''}) is READY from the kitchen!`, { 
+            duration: 8000,
+            icon: '🛎️'
+          });
+        }
+      } else if (data.stage === 'completed') {
+        toast.success(`🛎️ An order is ready from the kitchen!`, { duration: 6000 });
+      }
+    };
+
     socket.on('order:created', handleRefresh);
     socket.on('order:paid', handleRefresh);
     socket.on('table:status_changed', handleRefresh);
+    socket.on('kitchen:ticket_updated', handleKitchenUpdate);
     return () => {
       socket.off('order:created', handleRefresh);
       socket.off('order:paid', handleRefresh);
       socket.off('table:status_changed', handleRefresh);
+      socket.off('kitchen:ticket_updated', handleKitchenUpdate);
     };
   }, []);
 
@@ -157,7 +180,7 @@ export default function POSTerminal() {
   };
 
   const createAndSelectCustomer = async () => {
-    if (!newCustomer.name) { toast.error('Name required'); return; }
+    if (!newCustomer.name) { toast.error('Customer does not exist'); return; }
     setCreatingCustomer(true);
     try {
       const { data } = await customersAPI.create(newCustomer);
@@ -207,6 +230,7 @@ export default function POSTerminal() {
         });
       }
       await ordersAPI.sendToKitchen(orderId!);
+      setOrderStatus('sent_to_kitchen');
       toast.success('Order sent to kitchen!');
     } catch (err: any) { toast.error(err.response?.data?.message || 'Failed'); }
   };
@@ -249,6 +273,7 @@ export default function POSTerminal() {
 
       toast.success('Payment processed!');
       store.clearCart();
+      setOrderStatus('draft');
       setAmountReceived('');
       setTransactionRef('');
     } catch (err: any) { toast.error(err.response?.data?.message || 'Payment failed'); }
@@ -266,6 +291,40 @@ export default function POSTerminal() {
       toast.success('Session closed successfully');
     } catch (err: any) { toast.error(err.response?.data?.message || 'Failed to close session'); }
   };
+
+  const recommendations = React.useMemo(() => {
+    if (!products.length) return [];
+    const cartProductIds = new Set(store.cartItems.map(i => i.product_id));
+    if (store.cartItems.length === 0) {
+      return products.filter(p => p.active).slice(0, 3);
+    }
+    const cartCategories = new Set(store.cartItems.map(i => {
+      const prod = products.find(p => p.id === i.product_id);
+      return prod?.category_id;
+    }));
+    const scored = products
+      .filter(p => p.active && !cartProductIds.has(p.id))
+      .map(p => {
+        let score = 0;
+        const cat = categories.find(c => c.id === p.category_id);
+        const catName = cat?.name || '';
+        const hasDrinks = Array.from(cartCategories).some(cid => {
+          const c = categories.find(cat => cat.id === cid);
+          return c?.name.includes('Coffee') || c?.name.includes('Beverages');
+        });
+        const hasFood = Array.from(cartCategories).some(cid => {
+          const c = categories.find(cat => cat.id === cid);
+          return c?.name.includes('Sandwich') || c?.name.includes('Salads') || c?.name.includes('Breakfast');
+        });
+        if (hasDrinks && catName.includes('Desserts')) score += 3;
+        if (hasFood && (catName.includes('Coffee') || catName.includes('Beverages'))) score += 3;
+        return { product: p, score };
+      });
+    return scored
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map(item => item.product);
+  }, [products, categories, store.cartItems]);
 
   const cartSubtotal = store.cartSubtotal();
   const cartTax = store.cartTax();
@@ -454,15 +513,26 @@ export default function POSTerminal() {
       {/* Cart Panel */}
       <div className="pos-cart">
         <div className="cart-header">
-          <div className="cart-table-info">
-            {store.selectedTable && <span className="cart-table-tag" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Utensils size={13} /> Table {store.selectedTable.table_number}</span>}
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Current Order</span>
+          <div className="cart-table-info" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Current Order</span>
+              {store.currentOrderId && (
+                <span className={`badge ${
+                  orderStatus === 'ready' ? 'badge-success' : 
+                  orderStatus === 'preparing' ? 'badge-warning' : 
+                  orderStatus === 'sent_to_kitchen' ? 'badge-info' : 'badge-gray'
+                }`} style={{ fontSize: 10, padding: '1px 6px', textTransform: 'capitalize' }}>
+                  {orderStatus === 'sent_to_kitchen' ? 'In Kitchen' : orderStatus}
+                </span>
+              )}
+            </div>
+            {store.selectedTable && <span className="cart-table-tag" style={{ display: 'flex', alignItems: 'center', gap: 4, width: 'fit-content' }}><Utensils size={13} /> Table {store.selectedTable.table_number}</span>}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn btn-secondary btn-sm" onClick={() => setShowCustomerModal(true)} style={{ fontSize: 12 }}>
               {store.selectedCustomer ? `${store.selectedCustomer.name.split(' ')[0]}` : '＋ Customer'}
             </button>
-            {store.cartItems.length > 0 && <button className="btn btn-danger btn-sm" onClick={store.clearCart} style={{ fontSize: 12 }}>Clear</button>}
+            {store.cartItems.length > 0 && <button className="btn btn-danger btn-sm" onClick={() => { store.clearCart(); setOrderStatus('draft'); }} style={{ fontSize: 12 }}>Clear</button>}
           </div>
         </div>
 
@@ -489,6 +559,47 @@ export default function POSTerminal() {
               </div>
             ))
           )}
+        </div>
+
+        {/* Smart Recommendations */}
+        <div style={{ padding: '12px 16px', background: 'var(--cream-50)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <span style={{ fontSize: 13 }}>💡</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--brown-700)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Smart Pairings
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }} className="hide-scrollbar">
+            {recommendations.map((p: any) => (
+              <div 
+                key={p.id} 
+                onClick={() => {
+                  store.addItem({ product_id: p.id, name: p.name, price: p.price, quantity: 1, tax: p.tax, category_color: p.category_color });
+                  toast.success(`Added ${p.name} to order`);
+                }}
+                style={{ 
+                  background: 'var(--bg-card)', 
+                  border: '1px solid var(--border)', 
+                  borderRadius: 8, 
+                  padding: '6px 10px', 
+                  minWidth: 125, 
+                  flexShrink: 0, 
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  boxShadow: 'var(--shadow-xs)'
+                }}
+              >
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--brown-600)' }}>{formatCurrency(p.price)}</span>
+                  <span style={{ fontSize: 9, background: 'var(--cream-200)', color: 'var(--brown-700)', padding: '1px 5px', borderRadius: 8, fontWeight: 700 }}>＋ Add</span>
+                </div>
+              </div>
+            ))}
+            {recommendations.length === 0 && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', width: '100%', padding: '4px 0' }}>No pairings found</div>
+            )}
+          </div>
         </div>
 
         <div className="cart-summary">
@@ -662,6 +773,7 @@ export default function POSTerminal() {
                           store.clearCart();
                           store.setTable(t);
                           store.setOrderId(orderDetails.id);
+                          setOrderStatus(orderDetails.status);
                           
                           if (orderDetails.customer_id) {
                             store.setCustomer({ id: orderDetails.customer_id, name: orderDetails.customer_name || 'Customer' });
@@ -688,6 +800,7 @@ export default function POSTerminal() {
                         } else {
                           store.clearCart();
                           store.setTable(t);
+                          setOrderStatus('draft');
                           toast.success(`Table ${t.table_number} selected`);
                         }
                       } catch (err) {
@@ -705,7 +818,7 @@ export default function POSTerminal() {
               </div>
               {store.selectedTable && (
                 <div style={{ marginTop: 12 }}>
-                  <button className="btn btn-danger btn-sm" onClick={() => { store.setTable(null); setShowTableModal(false); }}>Remove Table Selection</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => { store.clearCart(); store.setTable(null); setOrderStatus('draft'); setShowTableModal(false); }}>Remove Table Selection</button>
                 </div>
               )}
             </div>
